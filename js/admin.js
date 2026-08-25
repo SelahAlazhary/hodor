@@ -387,14 +387,6 @@ function bindReport() {
 
   // تقارير Excel الاحترافية من خدمة بايثون
   $("#xlsxRep").onclick = () => apiDownload(`/api/report?month=${$("#repMonth").value || monthKey()}`);
-  $("#xlsxPay").onclick = () => {
-    const rate = prompt("أجر الساعة بالجنيه (يُستخدم لمن ليس له أجر محفوظ):", "50");
-    if (rate === null) return;
-    const mult = prompt("مضاعف الساعة الإضافية:", "1.5");
-    if (mult === null) return;
-    apiDownload(`/api/payroll?month=${$("#repMonth").value || monthKey()}` +
-                `&rate=${encodeURIComponent(rate)}&ot_multiplier=${encodeURIComponent(mult)}`);
-  };
   $("#repDetailClose").onclick = () => { $("#repDetailCard").hidden = true; };
 }
 

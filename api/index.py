@@ -6,7 +6,7 @@
 تعمل بجانب التطبيق ولا تعطّله: التطبيق يظل يسجّل الحضور مباشرة
 (ويعمل بدون إنترنت)، وهذه الخدمة تتولّى الأعمال الثقيلة:
 
-  • تقارير Excel احترافية (شهرية / يومية / كشف رواتب)
+  • تقارير Excel احترافية (شهرية ويومية)
   • تسجيل الغياب تلقائياً آخر كل يوم عمل
   • ملخّصات جاهزة بصيغة JSON
 
@@ -393,43 +393,6 @@ def daily_report(date: str = Query(default=None, description="YYYY-MM-DD")):
     return xlsx_response(wb, f"حضور-{dk}.xlsx")
 
 
-@app.get("/api/payroll")
-def payroll(
-    month: str = Query(default=None, description="YYYY-MM"),
-    rate: float = Query(default=0, description="أجر الساعة الافتراضي"),
-    ot_multiplier: float = Query(default=1.5, description="مضاعف الساعة الإضافية"),
-):
-    """كشف رواتب Excel محسوب من الساعات الفعلية والإضافية."""
-    month = month or now_cairo().strftime("%Y-%m")
-    settings, emps, rows_by_emp = load_context(month)
-    y, m = (int(x) for x in month.split("-"))
-
-    wb = Workbook()
-    ws = new_sheet(
-        wb, "كشف الرواتب",
-        ["الموظف", "أجر الساعة", "ساعات عادية", "قيمة العادي",
-         "ساعات إضافية", f"قيمة الإضافي (×{ot_multiplier})", "الإجمالي المستحق"],
-        [24, 13, 14, 14, 14, 18, 16],
-    )
-    grand = 0.0
-    for e in emps:
-        s = summarize(rows_by_emp.get(e["id"], []), e, settings)
-        r = float(e.get("hourRate") or rate or 0)
-        normal_h = round(max(0.0, s["hours"] - s["overtimeHours"]), 2)
-        normal_v = round(normal_h * r, 2)
-        ot_v = round(s["overtimeHours"] * r * ot_multiplier, 2)
-        total = round(normal_v + ot_v, 2)
-        grand += total
-        ws.append([e.get("name", ""), r, normal_h, normal_v,
-                   s["overtimeHours"], ot_v, total])
-    ws.append(["الإجمالي", "", "", "", "", "", round(grand, 2)])
-    style_body(ws, bold_last=True)
-    for row in ws.iter_rows(min_row=2, max_row=ws.max_row):
-        for cell in (row[3], row[5], row[6]):
-            cell.number_format = "#,##0.00"
-    return xlsx_response(wb, f"رواتب-{AR_MONTHS[m - 1]}-{y}.xlsx")
-
-
 @app.get("/api/auto-absent")
 def auto_absent(
     date: str = Query(default=None, description="YYYY-MM-DD (افتراضياً اليوم)"),
@@ -514,7 +477,6 @@ def index():
             "/api/summary?month=YYYY-MM": "ملخّص شهري JSON",
             "/api/report?month=YYYY-MM": "تقرير Excel شهري",
             "/api/report/daily?date=YYYY-MM-DD": "تقرير Excel يومي",
-            "/api/payroll?month=YYYY-MM&rate=50": "كشف رواتب Excel",
             "/api/auto-absent": "تسجيل الغائبين تلقائياً",
             "/api/cleanup": "تنظيف السجلات اليتيمة",
         },
