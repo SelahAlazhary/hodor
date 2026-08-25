@@ -279,6 +279,32 @@
       <div id="statusPill" class="pill pill-idle">لم يتم تسجيل الحضور بعد</div>
     </div>
 
+    <div id="empInstallCard" class="install-card" hidden>
+      <span class="install-card-ico"><svg class="ico"><use href="#i-mobile"/></svg></span>
+      <div>
+        <b>ثبّت التطبيق على هاتفك</b>
+        <span>ليعمل بدون إنترنت وتصلك إشعارات الحضور والانصراف</span>
+      </div>
+      <button id="empInstallBtn" class="btn btn-gold btn-xs">تثبيت</button>
+    </div>
+
+    <div id="pcConfirmCard" class="pc-card" hidden>
+      <div class="pc-head">
+        <span class="pc-ico"><svg class="ico"><use href="#i-monitor"/></svg></span>
+        <div><b>تأكيد الحضور من الكمبيوتر</b>
+          <span id="pcConfirmMsg">أدخل كلمة مرور الحضور الخاصة بك لتأكيد وجودك.</span></div>
+      </div>
+      <form id="pcConfirmForm" class="pc-form" autocomplete="off">
+        <div class="input-icon">
+          <svg class="ico"><use href="#i-lock"/></svg>
+          <input id="pcPin" type="password" inputmode="numeric" placeholder="كلمة مرور الحضور" required />
+          <button type="button" class="pw-eye" data-pw="pcPin"><svg class="ico"><use href="#i-eye"/></svg></button>
+        </div>
+        <button class="btn btn-primary" type="submit"><svg class="ico"><use href="#i-check"/></svg> تأكيد الحضور</button>
+      </form>
+      <div id="pcConfirmMsgBox" class="alert" hidden></div>
+    </div>
+
     <div id="autoOnlyNote" class="auto-only" hidden>
       <span class="auto-ico"><svg class="ico"><use href="#i-wifi"/></svg></span>
       <div>
@@ -335,6 +361,46 @@
       </div>
     </div>
 
+    <div class="card" id="empNoticeCard" hidden>
+      <div class="card-head"><h3><svg class="ico ico-head"><use href="#i-bell"/></svg> إشعارات الإدارة</h3></div>
+      <ul id="empNoticeList" class="feed"></ul>
+    </div>
+
+    <div class="card" id="empPinCard">
+      <div class="card-head">
+        <h3><svg class="ico ico-head"><use href="#i-lock"/></svg> كلمة مرور الحضور</h3>
+        <span id="pinState" class="tag t-off">غير مُعيَّنة</span>
+      </div>
+      <p class="hint">
+        كلمة مرور خاصة بك تؤكّد بها حضورك من جهاز الكمبيوتر. لا يعرفها أحد غيرك —
+        تُحفظ مشفَّرة ولا تظهر لأحد.
+      </p>
+      <form id="empPinForm" class="pin-form" autocomplete="off">
+        <label class="field" id="oldPinWrap" hidden><span>كلمة المرور الحالية</span>
+          <input id="empPinOld" type="password" inputmode="numeric" placeholder="••••" />
+        </label>
+        <label class="field"><span>كلمة المرور الجديدة</span>
+          <input id="empPinNew" type="password" inputmode="numeric" placeholder="4 أرقام أو أكثر" required />
+        </label>
+        <label class="field"><span>تأكيدها</span>
+          <input id="empPinNew2" type="password" inputmode="numeric" placeholder="أعد كتابتها" required />
+        </label>
+        <button class="btn btn-primary" type="submit"><svg class="ico"><use href="#i-save"/></svg> حفظ</button>
+      </form>
+      <div id="empPinMsg" class="alert" hidden></div>
+    </div>
+
+    <div class="card" id="autoStartCard" hidden>
+      <div class="card-head"><h3><svg class="ico ico-head"><use href="#i-refresh"/></svg> تشغيل التطبيق تلقائياً مع الكمبيوتر</h3></div>
+      <ol class="steps-ol">
+        <li>ثبّت التطبيق أولاً من زر <b>تثبيت</b> بالأعلى.</li>
+        <li>افتح في المتصفح: <code>chrome://apps</code> (أو <code>edge://apps</code>).</li>
+        <li>اضغط بالزر الأيمن على أيقونة <b>حضور الأزهري</b>.</li>
+        <li>فعّل <b>«Start app when you sign in»</b> أو <b>«تشغيل عند تسجيل الدخول»</b>.</li>
+      </ol>
+      <p class="hint">بعدها يفتح التطبيق نفسه تلقائياً بعد كل إعادة تشغيل للجهاز.</p>
+    </div>
+
     <div class="card">
       <div class="card-head">
         <h3><svg class="ico ico-head"><use href="#i-calendar"/></svg> سجل الشهر</h3>
@@ -381,6 +447,7 @@
     <button class="navbtn" data-pane="today"><svg class="ico"><use href="#i-clock"/></svg> حضور اليوم</button>
     <button class="navbtn" data-pane="emps"><svg class="ico"><use href="#i-users"/></svg> الموظفون</button>
     <button class="navbtn" data-pane="report"><svg class="ico"><use href="#i-report"/></svg> التقرير الشهري</button>
+    <button class="navbtn" data-pane="notice"><svg class="ico"><use href="#i-bell"/></svg> إرسال إشعار</button>
     <button class="navbtn" data-pane="settings"><svg class="ico"><use href="#i-gear"/></svg> الإعدادات</button>
   </nav>
 
@@ -564,6 +631,39 @@
       </div>
     </div>
 
+    <!-- الإشعارات -->
+    <div class="pane" id="pane-notice">
+      <div class="card">
+        <div class="card-head"><h3><svg class="ico ico-head"><use href="#i-bell"/></svg> إرسال إشعار للموظفين</h3></div>
+        <form id="noticeForm" autocomplete="off">
+          <div class="field">
+            <span>المستلمون</span>
+            <div class="seg" id="noticeTarget">
+              <button type="button" class="seg-btn active" data-t="all">كل الموظفين</button>
+              <button type="button" class="seg-btn" data-t="some">موظفون محددون</button>
+            </div>
+          </div>
+          <div id="noticePick" class="pick-list" hidden></div>
+          <label class="field"><span>عنوان الإشعار</span>
+            <input id="noticeTitle" type="text" maxlength="60" placeholder="مثال: اجتماع غداً" required />
+          </label>
+          <label class="field"><span>نص الإشعار</span>
+            <textarea id="noticeBody" rows="3" maxlength="300" placeholder="اكتب الرسالة التي ستصل إشعاراً على هواتفهم…" required></textarea>
+          </label>
+          <div class="ef-actions">
+            <button class="btn btn-primary" type="submit"><svg class="ico"><use href="#i-send"/></svg> إرسال الإشعار</button>
+          </div>
+        </form>
+        <div id="noticeMsg" class="alert" hidden></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h3><svg class="ico ico-head"><use href="#i-report"/></svg> الإشعارات المرسلة</h3></div>
+        <ul id="noticeList" class="feed"></ul>
+        <div id="noticeEmpty" class="empty"><svg class="ico empty-ico"><use href="#i-bell"/></svg> لم تُرسل إشعارات بعد</div>
+      </div>
+    </div>
+
     <!-- الإعدادات -->
     <div class="pane" id="pane-settings">
       <div class="card">
@@ -724,6 +824,27 @@
     </div>
   </main>
 </section>
+
+<div id="qrModal" class="modal" hidden>
+  <div class="modal-card qr-card">
+    <div class="modal-head">
+      <h3><svg class="ico ico-head"><use href="#i-mobile"/></svg> ربط جهاز الموظف</h3>
+      <button id="qrClose" class="icon-btn"><svg class="ico"><use href="#i-close"/></svg></button>
+    </div>
+    <div class="qr-body">
+      <p class="qr-name" id="qrEmpName">—</p>
+      <div class="qr-frame"><img id="qrImg" alt="رمز الربط" /></div>
+      <p class="qr-hint">
+        افتح كاميرا الجهاز الذي تريد ربطه (هاتف أو كمبيوتر) وامسح الرمز —
+        سيُفتح حساب الموظف عليه ويُربط به وحده. الرمز صالح <b>15 دقيقة</b> ولمرة واحدة.
+      </p>
+      <div class="qr-link">
+        <input id="qrLink" type="text" readonly />
+        <button id="qrCopy" class="btn btn-ghost btn-xs">نسخ</button>
+      </div>
+    </div>
+  </div>
+</div>
 
 <div id="toast" class="toast" hidden></div>
 

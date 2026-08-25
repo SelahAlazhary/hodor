@@ -9,7 +9,7 @@ import {
   compensateLate,
   addEmployee, updateEmployee, removeEmployee, setRecord, releaseDevice,
   saveSettings, watchEvents, clearEvents, watchDevices, addNetwork, removeNetwork, logEvent,
-  removeDeviceEntry
+  removeDeviceEntry, createBindToken, sendNotice, watchNotices, removeNotice
 } from "./store.js";
 import { notify, askPermission, notifState, buzz } from "./notify.js";
 import { statusTag } from "./employee.js";
@@ -18,14 +18,14 @@ import { changeAdminPassword } from "./auth.js";
 import { refreshTimePickers, timeLabelAr } from "./timepicker.js";
 
 let ST = null;
-let unsubDay = null, unsubEvents = null, unsubDevices = null;
+let unsubDay = null, unsubEvents = null, unsubDevices = null, unsubNotices = null;
 let dayRows = [], devices = [];
 let seenEvents = new Set(), eventsPrimed = false;
 let curDate = dateKey();
 
 export function disposeAdmin() {
-  unsubDay?.(); unsubEvents?.(); unsubDevices?.();
-  unsubDay = unsubEvents = unsubDevices = null;
+  unsubDay?.(); unsubEvents?.(); unsubDevices?.(); unsubNotices?.();
+  unsubDay = unsubEvents = unsubDevices = unsubNotices = null;
   dayRows = []; devices = [];
   seenEvents = new Set();
   eventsPrimed = false;
@@ -51,12 +51,14 @@ export function initAdmin(state) {
   startDay();
   unsubEvents = watchEvents(onEvents);
   unsubDevices = watchDevices(list => { devices = list; paintDevices(); });
+  unsubNotices = watchNotices(paintNotices);
+  bindNotice();
 
   document.addEventListener("az:employees", refreshOnEmployees);
   paintEmployees(); fillSettings(); loadReport();
 }
 
-function refreshOnEmployees() { paintEmployees(); paintDash(); paintToday(); }
+function refreshOnEmployees() { paintEmployees(); paintDash(); paintToday(); paintNoticePick(); }
 
 /* ---------- التنقل ---------- */
 function bindNav() {
@@ -352,6 +354,7 @@ function paintEmployees() {
         : '<span class="tag t-off">غير مرتبط</span>'}</td>
       <td>${e.active === false ? '<span class="tag t-absent">موقوف</span>' : '<span class="tag t-present">نشط</span>'}</td>
       <td>
+        <button class="mini" data-e="qr" data-id="${e.id}"><svg class="ico"><use href="#i-mobile"/></svg> ربط بـQR</button>
         ${e.boundDevice ? `<button class="mini ok" data-e="free" data-id="${e.id}"><svg class="ico"><use href="#i-mobile"/></svg> هاتف جديد</button>` : ""}
         <button class="mini" data-e="edit" data-id="${e.id}"><svg class="ico"><use href="#i-edit"/></svg> تعديل</button>
         <button class="mini danger" data-e="del" data-id="${e.id}"><svg class="ico"><use href="#i-trash"/></svg> حذف</button>
@@ -369,6 +372,7 @@ function paintEmployees() {
       $("#empFormBtnLabel").textContent = "تحديث البيانات";
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
+    if (b.dataset.e === "qr") { await openQr(emp); return; }
     if (b.dataset.e === "free") {
       if (!confirm(`السماح لـ ${emp.name} بتسجيل الدخول من هاتف جديد؟\n` +
                    `سيُفصل حسابه عن الهاتف الحالي، وأول هاتف يدخل منه سيصبح هاتفه المعتمد.`)) return;
@@ -380,6 +384,98 @@ function paintEmployees() {
       if (!confirm(`حذف ${emp.name} نهائياً؟ (سجلات الحضور السابقة تبقى محفوظة)`)) return;
       await removeEmployee(emp.id); toast("تم الحذف", "ok");
     }
+  });
+}
+
+/* ---------- ربط الجهاز عبر QR ---------- */
+async function openQr(emp) {
+  const modal = $("#qrModal");
+  $("#qrEmpName").textContent = emp.name;
+  $("#qrImg").removeAttribute("src");
+  modal.hidden = false;
+  try {
+    const token = await createBindToken(emp.id, emp.name);
+    const link = `${location.origin}${location.pathname}?bind=${token}`;
+    $("#qrLink").value = link;
+    $("#qrImg").src = `/api/qr?text=${encodeURIComponent(link)}&scale=7`;
+  } catch (e) {
+    const denied = String(e?.code || e?.message || "").toLowerCase().includes("permission");
+    toast(denied
+      ? "قواعد قاعدة البيانات تمنع إنشاء الرمز — انشر ملف database.rules.json"
+      : "تعذّر إنشاء رمز الربط — تأكد من الاتصال", "err");
+    modal.hidden = true;
+  }
+}
+$("#qrClose")?.addEventListener("click", () => { $("#qrModal").hidden = true; });
+$("#qrModal")?.addEventListener("click", e => { if (e.target.id === "qrModal") e.target.hidden = true; });
+$("#qrCopy")?.addEventListener("click", () => {
+  const i = $("#qrLink");
+  i.select();
+  navigator.clipboard?.writeText(i.value).then(() => toast("تم نسخ الرابط", "ok"))
+    .catch(() => toast("انسخ الرابط يدوياً"));
+});
+
+/* ---------- إرسال الإشعارات ---------- */
+let noticeMode = "all";
+
+function bindNotice() {
+  $$("#noticeTarget .seg-btn").forEach(b => b.onclick = () => {
+    $$("#noticeTarget .seg-btn").forEach(x => x.classList.remove("active"));
+    b.classList.add("active");
+    noticeMode = b.dataset.t;
+    $("#noticePick").hidden = noticeMode !== "some";
+    paintNoticePick();
+  });
+
+  $("#noticeForm").onsubmit = async e => {
+    e.preventDefault();
+    const box = $("#noticeMsg");
+    const show = (t, ok) => { box.textContent = t; box.className = "alert " + (ok ? "ok" : "error"); box.hidden = false; };
+    const title = $("#noticeTitle").value.trim(), body = $("#noticeBody").value.trim();
+    if (!title || !body) return;
+    let to = "all", count = (ST.employees || []).length;
+    if (noticeMode === "some") {
+      const ids = $$("#noticePick input:checked").map(i => i.value);
+      if (!ids.length) { show("اختر موظفاً واحداً على الأقل", false); return; }
+      to = ids; count = ids.length;
+    }
+    const btn = e.target.querySelector('button[type="submit"]');
+    btn.disabled = true;
+    const r = await sendNotice({ to, title, body });
+    btn.disabled = false;
+    if (!r.ok) { show(r.error, false); toast("لم يُرسل الإشعار", "err"); return; }
+    e.target.reset();
+    $$("#noticePick input").forEach(i => i.checked = false);
+    show(`تم إرسال الإشعار إلى ${count} موظف ✅`, true);
+    toast("تم إرسال الإشعار", "ok");
+  };
+}
+
+function paintNoticePick() {
+  const box = $("#noticePick"); if (!box) return;
+  box.innerHTML = (ST.employees || []).filter(e => e.active !== false).map(e => `
+    <label class="pick"><input type="checkbox" value="${e.id}" /> <span>${esc(e.name)}</span></label>`).join("")
+    || '<div class="empty">لا يوجد موظفون</div>';
+}
+
+function paintNotices(list) {
+  const ul = $("#noticeList"); if (!ul) return;
+  const names = id => (ST.employees || []).find(e => e.id === id)?.name || "—";
+  ul.innerHTML = list.map(n => {
+    const to = n.to === "all" ? "كل الموظفين"
+      : Object.keys(n.to || {}).map(names).join("، ") || "—";
+    return `<li>
+      <span class="fi fi-msg"><svg class="ico"><use href="#i-bell"/></svg></span>
+      <span><b>${esc(n.title)}</b><br>${esc(n.body)}
+        <small>إلى: ${esc(to)} • ${relAr(n.createdAt || n.at)}</small></span>
+      <button class="mini danger" data-notice="${n.id}"><svg class="ico"><use href="#i-trash"/></svg></button>
+    </li>`;
+  }).join("");
+  $("#noticeEmpty").hidden = list.length > 0;
+  ul.querySelectorAll("button[data-notice]").forEach(b => b.onclick = async () => {
+    if (!confirm("حذف هذا الإشعار؟")) return;
+    await removeNotice(b.dataset.notice);
+    toast("تم الحذف", "ok");
   });
 }
 
@@ -455,14 +551,17 @@ async function loadReport() {
 function onEvents(list) {
   const ul = $("#feedList");
   ul.innerHTML = list.map(ev => {
-    const ico = { in: "i-in", out: "i-out", abs: "i-ban", leftnet: "i-wifi-off" }[ev.type] || "i-bell";
+    const ico = { in: "i-in", out: "i-out", abs: "i-ban", leftnet: "i-wifi-off", awaynet: "i-alert" }[ev.type] || "i-bell";
     const cls = { in: "fi-in", out: "fi-out", abs: "fi-abs" }[ev.type]
-      || (ev.type === "leftnet" ? (ev.afterShift ? "fi-warn" : "fi-abs") : "fi-in");
+      || (ev.type === "leftnet" ? (ev.afterShift ? "fi-warn" : "fi-abs")
+       : ev.type === "awaynet" ? "fi-abs" : "fi-in");
     const txt = ev.type === "in" ? `سجّل حضوره${ev.status === "late" ? " (متأخر)" : ""} الساعة ${timeAr(ev.at)}`
       : ev.type === "out" ? `سجّل انصرافه الساعة ${timeAr(ev.at)} — ${minToHuman(ev.workedMin)}`
       : ev.type === "leftnet" ? (ev.afterShift
           ? `غادر <b>بعد انتهاء دوامه</b> الساعة ${timeAr(ev.at)} دون تسجيل انصراف`
           : `<b class="danger-txt">غادر قبل انتهاء دوامه</b> الساعة ${timeAr(ev.at)} دون تسجيل انصراف`)
+      : ev.type === "awaynet"
+        ? `<b class="danger-txt">خارج شبكة الشركة منذ ${minToHuman(ev.awayMin)}</b> وحضوره ما زال مفتوحاً — تحقّق من وجوده`
       : `تم تسجيل غياب${ev.note ? " — " + esc(ev.note) : ""}`;
     return `<li><span class="fi ${cls}"><svg class="ico"><use href="#${ico}"/></svg></span><span><b>${esc(ev.empName || "")}</b> ${txt}<small>${relAr(ev.createdAt || ev.at)}</small></span></li>`;
   }).join("");
@@ -477,6 +576,10 @@ function onEvents(list) {
     if (ev.type === "in") notify("🟢 حضور جديد", `${ev.empName} سجّل حضوره الساعة ${timeAr(ev.at)}${ev.status === "late" ? " (متأخر)" : ""}`, { tag: "adm-" + ev.id });
     if (ev.type === "out") notify("🔴 انصراف", `${ev.empName} انصرف الساعة ${timeAr(ev.at)} — ${minToHuman(ev.workedMin)}`, { tag: "adm-" + ev.id });
     if (ev.type === "abs") notify("🚫 غياب", `${ev.empName} — ${dateAr(ev.date)}${ev.note ? "\n" + ev.note : ""}`, { tag: "adm-" + ev.id });
+    if (ev.type === "awaynet") notify("⏳ موظف خارج الشبكة",
+      `${ev.empName} خارج شبكة الشركة منذ ${minToHuman(ev.awayMin)} وحضوره ما زال مفتوحاً.
+تحقّق من وجوده.`,
+      { tag: "adm-" + ev.id, sticky: true });
     if (ev.type === "leftnet") notify(
       ev.afterShift ? "🔔 غادر بعد انتهاء دوامه" : "⚠️ غادر قبل انتهاء دوامه",
       `${ev.empName} غادر شبكة الشركة الساعة ${timeAr(ev.at)} ولم يسجّل انصرافه` +

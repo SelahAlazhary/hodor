@@ -1,7 +1,8 @@
 /* ===== نقطة البداية: الإقلاع، الدخول، التوجيه، تثبيت التطبيق ===== */
 import { $, $$, LS, toast, esc, normName, deviceId, initials } from "./utils.js";
 import { getSettings, watchSettings, watchEmployees, findEmployee, registerDevice,
-         bindDevice, watchConnection, watchServerClock, flush, pendingCount } from "./store.js";
+         bindDevice, consumeBindToken, watchConnection, watchServerClock,
+         flush, pendingCount } from "./store.js";
 import { askPermission } from "./notify.js";
 import { verifyAdmin } from "./auth.js";
 import { enhanceTimeInputs } from "./timepicker.js";
@@ -93,6 +94,13 @@ async function runInstall() {
 
 $("#installBtn")?.addEventListener("click", runInstall);
 $("#installNow")?.addEventListener("click", runInstall);
+$("#empInstallBtn")?.addEventListener("click", runInstall);
+
+/** يُظهر بطاقة التثبيت داخل شاشة الموظف إن لم يكن التطبيق مثبَّتاً */
+export function refreshInstallCard() {
+  const card = $("#empInstallCard");
+  if (card) card.hidden = isInstalled();
+}
 $("#installRecheck")?.addEventListener("click", () => {
   if (isInstalled()) { toast("تم التثبيت بنجاح ✅", "ok"); startSession(); }
   else toast("ما زال التطبيق غير مثبَّت — افتحه من أيقونته على الشاشة الرئيسية", "err");
@@ -101,6 +109,7 @@ $("#installBack")?.addEventListener("click", () => { LS.del("az_session"); state
 
 window.addEventListener("appinstalled", () => {
   $("#installBtn").hidden = true;
+  refreshInstallCard();
   toast("تم تثبيت التطبيق — افتحه من الشاشة الرئيسية ✅", "ok");
 });
 
@@ -268,8 +277,25 @@ export function startSession() {
     const me = emp || { id: s.empId, name: s.name };
     const av = $("#empAvatar");
     if (av) av.textContent = initials(me.name);
+    refreshInstallCard();
     disposeAdmin(); go("emp"); initEmployee(state, me);
   }
+}
+
+/* ---------- ربط الجهاز عبر رمز QR ---------- */
+async function handleBindLink(token) {
+  const r = await consumeBindToken(token);
+  if (!r.ok) { toast(r.error, "err"); go("login"); return; }
+  const emp = state.employees.find(e => e.id === r.empId);
+  if (!emp) { toast("لم يعد هذا الموظف موجوداً", "err"); go("login"); return; }
+  if (emp.active === false) { toast("حساب الموظف موقوف", "err"); go("login"); return; }
+
+  await bindDevice(emp.id, deviceId());          // يربط هذا الجهاز بالحساب
+  await askPermission(true);
+  state.session = { role: "employee", empId: emp.id, name: emp.name };
+  LS.set("az_session", state.session);
+  toast(`تم ربط هذا الجهاز بحساب ${emp.name} ✅`, "ok");
+  startSession();
 }
 
 /* ---------- الإقلاع ---------- */
@@ -296,6 +322,9 @@ export function startSession() {
   });
   getSettings().then(s => { if (!state.settings) state.settings = s; }).catch(() => {});
 
+  const bindToken = new URLSearchParams(location.search).get("bind");
+  if (bindToken) history.replaceState({}, "", location.pathname);
+
   // الموظفون (مباشر)
   watchEmployees(list => {
     state.employees = list;
@@ -319,6 +348,7 @@ export function startSession() {
     }
 
     clearTimeout(fallback);
+    if (bindToken && !started) { started = true; hideBoot(); handleBindLink(bindToken); return; }
     showUI();
   });
 })();

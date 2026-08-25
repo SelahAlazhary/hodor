@@ -718,3 +718,91 @@ code{font-size:11px;background:var(--line-2);padding:2px 6px;border-radius:6px;d
 .fi-warn{background:var(--amber-100);color:var(--amber)}
 .warn-txt{color:var(--amber)}
 .danger-txt{color:var(--red)}
+
+/* ═══════════ النافذة المنبثقة ═══════════ */
+.modal{
+  position:fixed;inset:0;background:rgba(6,26,16,.6);z-index:200;display:flex;
+  align-items:center;justify-content:center;backdrop-filter:blur(3px);padding:16px;
+  animation:fade .2s var(--ease);
+}
+.modal-card{
+  background:#fff;width:100%;max-width:420px;border-radius:22px;padding:16px;
+  max-height:90dvh;overflow:auto;animation:up .28s var(--ease);box-shadow:var(--sh-lg);
+}
+@keyframes up{from{transform:translateY(24px);opacity:.5}}
+.modal-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+.modal-head h3{font-size:16px;display:flex;align-items:center;gap:7px}
+.modal-head .icon-btn{background:var(--line-2);color:var(--ink);border-color:transparent}
+
+/* ═══════════ رمز الربط QR ═══════════ */
+.qr-body{text-align:center}
+.qr-name{font-weight:800;font-size:15px;margin:0 0 10px;color:var(--green-800)}
+.qr-frame{
+  background:#fff;border:2px solid var(--green-100);border-radius:18px;padding:12px;
+  display:inline-block;box-shadow:var(--sh-sm);
+}
+.qr-frame img{width:210px;height:210px;display:block}
+.qr-hint{font-size:12.5px;color:var(--muted);line-height:1.9;margin:12px 0}
+.qr-link{display:flex;gap:7px;margin-top:6px}
+.qr-link input{
+  flex:1;border:1.5px solid var(--line);border-radius:11px;padding:9px 10px;
+  font-size:11.5px;direction:ltr;background:#fbfdfc;min-width:0;
+}
+
+/* ═══════════ بطاقة تثبيت داخل شاشة الموظف ═══════════ */
+.install-card{
+  display:flex;align-items:center;gap:11px;margin-bottom:14px;padding:12px 14px;
+  border-radius:var(--r-lg);border:1px solid #eadfb2;
+  background:linear-gradient(135deg,var(--gold-100),#fffbef);
+}
+.install-card-ico{
+  width:38px;height:38px;border-radius:12px;flex:none;display:grid;place-items:center;
+  background:linear-gradient(135deg,#f6dc8e,var(--gold));color:#3a2d00;
+}
+.install-card-ico .ico{width:19px;height:19px}
+.install-card b{display:block;font-size:13.5px;color:var(--gold-700)}
+.install-card>div>span{font-size:11.5px;color:var(--muted)}
+.install-card .btn{margin-inline-start:auto;flex:none}
+
+/* ═══════════ تأكيد الحضور من الكمبيوتر ═══════════ */
+.pc-card{
+  border:1.5px solid #c9dcf3;border-radius:var(--r-lg);padding:14px;margin-bottom:14px;
+  background:linear-gradient(160deg,#f2f7fd,#fff);
+}
+.pc-head{display:flex;align-items:flex-start;gap:11px;margin-bottom:12px}
+.pc-ico{
+  width:38px;height:38px;border-radius:12px;flex:none;display:grid;place-items:center;
+  background:linear-gradient(135deg,#5b9bea,var(--blue));color:#fff;
+}
+.pc-ico .ico{width:19px;height:19px}
+.pc-card b{display:block;font-size:13.5px;color:var(--blue)}
+.pc-head>div>span{font-size:12px;color:var(--muted);line-height:1.7}
+.pc-form{display:flex;gap:9px;flex-wrap:wrap}
+.pc-form .input-icon{flex:1;min-width:180px}
+.pin-form{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:0 12px;align-items:end}
+.pin-form .btn{margin-bottom:13px}
+.steps-ol{margin:0;padding-inline-start:20px;font-size:13px;line-height:2.1;color:var(--ink-2)}
+
+/* ═══════════ إرسال الإشعارات ═══════════ */
+.seg{display:flex;background:var(--line-2);border-radius:12px;padding:4px;gap:4px}
+.seg-btn{
+  flex:1;border:0;background:transparent;padding:9px;border-radius:9px;font-weight:800;
+  color:var(--muted);cursor:pointer;font-size:13px;transition:.18s var(--ease);
+}
+.seg-btn.active{background:#fff;color:var(--green);box-shadow:var(--sh-xs)}
+.pick-list{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:6px;
+  border:1.5px solid var(--line);border-radius:14px;padding:11px;margin-bottom:13px;
+  max-height:220px;overflow:auto;
+}
+.pick{display:flex;align-items:center;gap:7px;font-size:13.5px;font-weight:600;cursor:pointer;
+  padding:6px 8px;border-radius:9px}
+.pick:hover{background:var(--green-50)}
+.pick input{accent-color:var(--green-600);width:17px;height:17px}
+#noticeBody{
+  border:1.6px solid var(--line);border-radius:12px;padding:11px 12px;background:#fbfdfc;
+  outline:0;font-family:inherit;font-size:14px;resize:vertical;width:100%;
+}
+#noticeBody:focus{border-color:var(--green-500);background:#fff;box-shadow:0 0 0 4px var(--green-100)}
+#noticeList li,#empNoticeList li{align-items:flex-start}
+#noticeList .mini{margin-inline-start:auto;flex:none}

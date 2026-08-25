@@ -83,6 +83,19 @@ export async function verifyAdmin(pw, legacyPlain = null) {
   return { ok: false, hash: h };
 }
 
+/* ═══ كلمة مرور الحضور الخاصة بالموظف ═══
+   يعيّنها الموظف بنفسه وتُحفظ مشفَّرة في سجله، وتُطلب لتأكيد الحضور من الكمبيوتر. */
+export async function empPinHash(pin) {
+  return hashOf("emp::" + String(pin));
+}
+
+/** تصفير: هل تطابق كلمة المرور المحفوظة للموظف؟ */
+export async function verifyEmpPin(emp, pin) {
+  if (!emp?.pinHash) return { ok: false, error: "لم تُعيّن كلمة مرور الحضور بعد" };
+  const h = await empPinHash(pin);
+  return h === emp.pinHash ? { ok: true } : { ok: false, error: "كلمة المرور غير صحيحة" };
+}
+
 /** تغيير كلمة المرور — يتطلب معرفة الحالية */
 export async function changeAdminPassword(current, next, legacyPlain = null) {
   if (!next || next.length < 4) return { ok: false, error: "كلمة المرور الجديدة قصيرة جداً (4 أحرف على الأقل)" };

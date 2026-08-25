@@ -173,6 +173,36 @@ export function removeNetwork(ip) {
   enqueue(`${PATH.settings}/networks/${key}`, null);
 }
 
+/* ================= رموز ربط الأجهزة (QR) ================= */
+const BIND_PATH = "bindTokens";
+const TOKEN_TTL = 15 * 60 * 1000;                 // صلاحية 15 دقيقة
+
+/** ينشئ رمز ربط لمرة واحدة ويعيد الرمز */
+export async function createBindToken(empId, empName) {
+  const token = (crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2))
+    .replace(/-/g, "").slice(0, 20);
+  await set(ref(db, `${BIND_PATH}/${token}`), {
+    empId, empName: empName || "", createdAt: nowMs(), expiresAt: nowMs() + TOKEN_TTL, used: false
+  });
+  return token;
+}
+
+/** يتحقق من الرمز ويستهلكه — يعيد { ok, empId, error } */
+export async function consumeBindToken(token) {
+  try {
+    const snap = await get(ref(db, `${BIND_PATH}/${token}`));
+    const t = snap.val();
+    if (!t) return { ok: false, error: "رمز الربط غير صالح" };
+    if (t.used) return { ok: false, error: "هذا الرمز استُخدم من قبل — اطلب رمزاً جديداً" };
+    if (Number(t.expiresAt) && nowMs() > Number(t.expiresAt))
+      return { ok: false, error: "انتهت صلاحية الرمز — اطلب رمزاً جديداً" };
+    await update(ref(db, `${BIND_PATH}/${token}`), { used: true, usedAt: nowMs(), device: deviceId() });
+    return { ok: true, empId: t.empId };
+  } catch (e) {
+    return { ok: false, error: "تعذّر التحقق من الرمز — تأكد من الاتصال" };
+  }
+}
+
 /* ================= الموظفون ================= */
 const empList = obj => entries(obj).map(([id, v]) => ({ id, ...v }))
   .sort((a, b) => String(a.name).localeCompare(String(b.name), "ar"));
@@ -443,6 +473,40 @@ export async function clearEvents() {
   enqueue(PATH.events, null);
   LS.set(cacheKey(PATH.events), null);
 }
+
+/* ================= إشعارات الإدارة ================= */
+const NOTICE_PATH = "notices";
+
+/** يرسل إشعاراً لموظف أو مجموعة أو الجميع
+ *  @param to "all" أو مصفوفة معرّفات موظفين */
+export async function sendNotice({ to, title, body }) {
+  const id = push(ref(db, NOTICE_PATH)).key;
+  const map = to === "all" ? "all"
+    : (Array.isArray(to) ? to : [to]).reduce((o, k) => (o[k] = true, o), {});
+  try {
+    // كتابة مباشرة (لا طابور) حتى يظهر أي خطأ صلاحيات فوراً بدل نجاح وهمي
+    await set(ref(db, `${NOTICE_PATH}/${id}`), {
+      to: map, title: String(title || "").trim(), body: String(body || "").trim(),
+      at: instant().toISOString(), createdAt: nowMs()
+    });
+    return { ok: true, id };
+  } catch (e) {
+    const denied = String(e?.code || e?.message || "").toLowerCase().includes("permission");
+    return { ok: false, error: denied
+      ? "قواعد قاعدة البيانات تمنع الإرسال — انشر ملف database.rules.json من Firebase"
+      : "تعذّر الإرسال — تأكد من الاتصال بالإنترنت" };
+  }
+}
+export function watchNotices(cb, n = 40) {
+  return watchPath(NOTICE_PATH, obj => entries(obj).map(([id, v]) => ({ id, ...v }))
+    .sort((a, b) => Number(b.createdAt || 0) - Number(a.createdAt || 0)).slice(0, n), cb);
+}
+export async function removeNotice(id) {
+  try { await remove(ref(db, `${NOTICE_PATH}/${id}`)); } catch { enqueue(`${NOTICE_PATH}/${id}`, null); }
+}
+/** هل هذا الإشعار موجَّه لهذا الموظف؟ */
+export const noticeFor = (notice, empId) =>
+  notice?.to === "all" || (notice?.to && notice.to[empId] === true);
 
 /* ================= الأجهزة ================= */
 export async function registerDevice() {

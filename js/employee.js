@@ -2,25 +2,27 @@
 import {
   $, $$, esc, toast, fullDateAr, dateKey, monthKey, dateAr, dayAr,
   timeAr, minToHuman, minToHours, toDate, deviceId, hhmmToMin, now, nowMs, clockParts, clockOffset,
-  initials, instant, LS
+  initials, instant, relAr, LS
 } from "./utils.js";
 import { getPublicIP, ipMatches } from "./network.js";
+import { empPinHash, verifyEmpPin } from "./auth.js";
 import { DB_URL } from "./firebase.js";
 import {
   checkIn, checkOut, markAbsent, watchRecord, getMonth, summarize,
-  requiredMinOf, overtimeOf, logEvent, setRecord
+  requiredMinOf, overtimeOf, logEvent, setRecord, updateEmployee,
+  watchNotices, noticeFor
 } from "./store.js";
 import { notify, askPermission, buzz } from "./notify.js";
 
 let ST = null, EMP = null;
-let unsubRec = null, clockTimer = null;
+let unsubRec = null, unsubNotices = null, clockTimer = null;
 let today = null, kioskTarget = null;
 let autoTimer = null, autoBusy = false;
 let netWasOn = null, netMisses = 0;
 
 export function disposeEmployee() {
-  unsubRec?.(); clearInterval(clockTimer); clearInterval(autoTimer);
-  unsubRec = clockTimer = autoTimer = null;
+  unsubRec?.(); unsubNotices?.(); clearInterval(clockTimer); clearInterval(autoTimer);
+  unsubRec = unsubNotices = clockTimer = autoTimer = null;
   window.removeEventListener("online", onBackOnline);
   document.removeEventListener("visibilitychange", onVisible);
   ST = EMP = today = kioskTarget = null;
@@ -41,6 +43,11 @@ export function initEmployee(state, emp) {
 
   startClock();
   bindActions();
+  bindPinForm();
+  watchMyNotices();
+  bindPcConfirm();
+  paintPinState();
+  paintPcConfirm();
   applyKiosk();
   watchToday();
   loadHistory();
@@ -72,7 +79,9 @@ async function onBackOnline() {
   } catch {}
 }
 
-function onSettingsChanged() { applyKiosk(); paintToday(); paintAutoBar("", "جارٍ الفحص…"); tryAutoCheckin(); }
+function onSettingsChanged() {
+  applyKiosk(); paintToday(); paintAutoBar("", "جارٍ الفحص…"); tryAutoCheckin(); paintPcConfirm();
+}
 
 function onEmployeesChanged(e) {
   const fresh = e.detail.find(x => x.id === EMP?.id);
@@ -81,6 +90,7 @@ function onEmployeesChanged(e) {
     $("#empHeadName").textContent = fresh.name;
     $("#empHeadJob").textContent = fresh.job || "موظف";
     $("#empAvatar").textContent = initials(fresh.name);
+    paintPinState();
   }
   applyKiosk();
 }
@@ -183,7 +193,7 @@ function applyKiosk() {
 function watchToday() {
   unsubRec?.();
   const t = currentTarget();
-  unsubRec = watchRecord(dateKey(), t.id, rec => { today = rec; paintToday(); paintGauge(); });
+  unsubRec = watchRecord(dateKey(), t.id, rec => { today = rec; paintToday(); paintGauge(); paintPcConfirm(); });
 }
 
 /** يعكس حالة اليوم في شريط التوب بار */
@@ -338,6 +348,115 @@ export function statusTag(r) {
   return '<span class="tag t-off">—</span>';
 }
 
+/* ---------- إشعارات الإدارة ---------- */
+function watchMyNotices() {
+  unsubNotices?.();
+  let primed = false;
+  unsubNotices = watchNotices(list => {
+    const mine = list.filter(n => noticeFor(n, EMP?.id));
+    const card = $("#empNoticeCard"), ul = $("#empNoticeList");
+    if (card && ul) {
+      card.hidden = mine.length === 0;
+      ul.innerHTML = mine.slice(0, 10).map(n => `
+        <li><span class="fi fi-msg"><svg class="ico"><use href="#i-bell"/></svg></span>
+          <span><b>${esc(n.title)}</b><br>${esc(n.body)}<small>${relAr(n.createdAt || n.at)}</small></span>
+        </li>`).join("");
+    }
+    // إشعار على الهاتف لكل جديد لم يُعرض من قبل
+    const seen = new Set(LS.get("az_notice_seen", []) || []);
+    const fresh = mine.filter(n => !seen.has(n.id));
+    fresh.forEach(n => seen.add(n.id));
+    LS.set("az_notice_seen", [...seen].slice(-200));
+    if (!primed) { primed = true; return; }
+    fresh.slice(0, 3).forEach(n => {
+      buzz();
+      notify("📢 " + n.title, n.body, { tag: "notice-" + n.id, sticky: true });
+      toast("📢 " + n.title, "ok");
+    });
+  });
+}
+
+/* ---------- كلمة مرور الحضور وتأكيد الكمبيوتر ---------- */
+const isDesktop = () => !/Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+
+function bindPinForm() {
+  const form = $("#empPinForm"); if (!form) return;
+  form.onsubmit = async e => {
+    e.preventDefault();
+    const box = $("#empPinMsg");
+    const show = (t, ok) => { box.textContent = t; box.className = "alert " + (ok ? "ok" : "error"); box.hidden = false; };
+    const oldPin = $("#empPinOld").value, np = $("#empPinNew").value, np2 = $("#empPinNew2").value;
+    if (np.length < 4) { show("كلمة المرور قصيرة — 4 خانات على الأقل", false); return; }
+    if (np !== np2) { show("كلمة المرور وتأكيدها غير متطابقين", false); return; }
+    if (EMP.pinHash) {
+      const v = await verifyEmpPin(EMP, oldPin);
+      if (!v.ok) { show("كلمة المرور الحالية غير صحيحة", false); return; }
+    }
+    await updateEmployee(EMP.id, { pinHash: await empPinHash(np) });
+    form.reset();
+    show("تم حفظ كلمة مرور الحضور ✅", true);
+    toast("تم حفظ كلمة مرور الحضور", "ok");
+  };
+}
+
+function paintPinState() {
+  const tag = $("#pinState"); if (!tag) return;
+  const has = !!EMP?.pinHash;
+  tag.className = "tag " + (has ? "t-present" : "t-off");
+  tag.textContent = has ? "مُعيَّنة" : "غير مُعيَّنة";
+  const wrap = $("#oldPinWrap"); if (wrap) wrap.hidden = !has;
+  const auto = $("#autoStartCard"); if (auto) auto.hidden = !isDesktop();
+}
+
+/** بطاقة تأكيد الحضور من الكمبيوتر — تظهر على الكمبيوتر فقط وداخل شبكة الشركة */
+async function paintPcConfirm() {
+  const card = $("#pcConfirmCard"); if (!card || !EMP) return;
+  const s = ST?.settings || {};
+  const needed = isDesktop() && !kioskTarget && (!today || (!today.checkIn && today.status !== "absent"));
+  if (!needed) { card.hidden = true; return; }
+
+  card.hidden = false;
+  const msg = $("#pcConfirmMsg");
+  if (!EMP.pinHash) {
+    msg.textContent = "عيّن كلمة مرور الحضور من البطاقة بالأسفل أولاً.";
+    $("#pcConfirmForm").hidden = true;
+    return;
+  }
+  $("#pcConfirmForm").hidden = false;
+  const nets = autoNets();
+  if (!nets.length) { msg.textContent = "لم تُضف شبكة الشركة بعد — راجع الإدارة."; return; }
+  const ip = navigator.onLine ? await getPublicIP() : null;
+  const onNet = ip && ipMatches(ip, nets);
+  msg.textContent = onNet
+    ? "أنت داخل شبكة الشركة — أدخل كلمة مرور الحضور لتأكيد وجودك."
+    : "⚠ لست على شبكة الشركة — لا يمكن تأكيد الحضور من خارج المقر.";
+  $("#pcPin").disabled = !onNet;
+  $("#pcConfirmForm").querySelector("button[type=submit]").disabled = !onNet;
+}
+
+function bindPcConfirm() {
+  const form = $("#pcConfirmForm"); if (!form) return;
+  form.onsubmit = async e => {
+    e.preventDefault();
+    const box = $("#pcConfirmMsgBox");
+    const show = (t, ok) => { box.textContent = t; box.className = "alert " + (ok ? "ok" : "error"); box.hidden = false; };
+    const nets = autoNets();
+    const ip = navigator.onLine ? await getPublicIP(true) : null;
+    if (!ip || !ipMatches(ip, nets)) { show("لا يمكن تأكيد الحضور من خارج شبكة الشركة", false); return; }
+    const v = await verifyEmpPin(EMP, $("#pcPin").value);
+    if (!v.ok) { show(v.error, false); return; }
+    const r = await checkIn(EMP, ST.settings, "pc-pin");
+    if (!r.ok) { show(r.error, false); return; }
+    $("#pcPin").value = "";
+    show("تم تأكيد حضورك ✅", true);
+    buzz();
+    toast(`تم تسجيل حضورك ${timeAr(r.record.checkIn)} ✅`, "ok");
+    notify("✅ تم تأكيد الحضور", `${EMP.name}\nمن جهاز الكمبيوتر داخل الشركة\nالوقت: ${timeAr(r.record.checkIn)}`,
+      { tag: "att-in" });
+    loadHistory();
+  };
+}
+
 /* ---------- تنبيه انتهاء وقت العمل ---------- */
 /** موعد انتهاء دوام الموظف بالدقائق */
 const shiftEndMin = () => hhmmToMin(EMP?.workEnd || ST?.settings?.workEnd || "17:00");
@@ -411,6 +530,26 @@ async function checkNetworkExit() {
   }
   if (netWasOn !== true) return;                  // لم نتأكد أصلاً أنه كان عليها
   if (++netMisses < 2) return;                    // تأكيد بقراءتين
+
+  // ═══ غائب عن الشبكة منذ ساعة أو أكثر: تنبيه المدير ليتحقق من وجوده ═══
+  if (today.leftNetAt) {
+    const awayMin = Math.round((nowMs() - toDate(today.leftNetAt).getTime()) / 60000);
+    const slot = Math.floor(awayMin / 60);        // كل ساعة
+    if (slot >= 1) {
+      const aKey = `az_awaynet_${EMP.id}_${dateKey()}`;
+      if (Number(LS.get(aKey, 0)) <= slot && slot <= 4) {
+        LS.set(aKey, slot + 1);
+        logEvent({ type: "awaynet", empId: EMP.id, empName: EMP.name, date: dateKey(),
+                   at: instant().toISOString(), awayMin, since: today.leftNetAt });
+        notify("⏳ ما زلت خارج شبكة الشركة",
+          `${EMP.name}
+مضى ${minToHuman(awayMin)} خارج الشبكة وحضورك ما زال مفتوحاً.
+سجّل انصرافك أو عُد إلى المقر.`,
+          { tag: "away-net", sticky: true });
+      }
+    }
+  }
+
   if (LS.get(key)) return;                        // نُبّه مسبقاً اليوم
   LS.set(key, 1);
 

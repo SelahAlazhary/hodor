@@ -23,7 +23,9 @@ from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 from fastapi import FastAPI, Query
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse, Response
+import qrcode
+import qrcode.image.svg
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
@@ -393,6 +395,21 @@ def daily_report(date: str = Query(default=None, description="YYYY-MM-DD")):
     return xlsx_response(wb, f"حضور-{dk}.xlsx")
 
 
+@app.get("/api/qr")
+def qr(text: str = Query(..., description="النص أو الرابط داخل الرمز"),
+       scale: int = Query(default=7, ge=2, le=20)):
+    """يولّد رمز QR بصيغة SVG — يُستخدم لربط جهاز الموظف بحسابه."""
+    q = qrcode.QRCode(error_correction=qrcode.constants.ERROR_CORRECT_M,
+                      box_size=scale, border=2)
+    q.add_data(text)
+    q.make(fit=True)
+    img = q.make_image(image_factory=qrcode.image.svg.SvgPathImage)
+    buf = io.BytesIO()
+    img.save(buf)
+    return Response(buf.getvalue(), media_type="image/svg+xml",
+                    headers={"Cache-Control": "no-store"})
+
+
 @app.get("/api/auto-absent")
 def auto_absent(
     date: str = Query(default=None, description="YYYY-MM-DD (افتراضياً اليوم)"),
@@ -479,5 +496,6 @@ def index():
             "/api/report/daily?date=YYYY-MM-DD": "تقرير Excel يومي",
             "/api/auto-absent": "تسجيل الغائبين تلقائياً",
             "/api/cleanup": "تنظيف السجلات اليتيمة",
+            "/api/qr?text=...": "توليد رمز QR لربط الأجهزة",
         },
     })
