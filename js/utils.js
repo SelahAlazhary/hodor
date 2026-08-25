@@ -161,6 +161,56 @@ export const LS = {
   del(k) { try { localStorage.removeItem(k); } catch {} }
 };
 
+/* ---------- التعرّف على نوع الجهاز ----------
+   نجمع أكثر من إشارة موثوقة بدل الاعتماد على نص المتصفح وحده:
+   userAgentData (الأدق في المتصفحات الحديثة) ثم اللمس ثم المؤشر ثم المقاس. */
+export function deviceKind() {
+  const ua = navigator.userAgent || "";
+  const uaData = navigator.userAgentData;
+
+  // 1) الإشارة الرسمية من المتصفح
+  if (uaData && typeof uaData.mobile === "boolean") {
+    if (uaData.mobile) return /iPad|Tablet/i.test(ua) ? "tablet" : "phone";
+    if (!/Android|iPhone|iPad|iPod/i.test(ua)) return "desktop";
+  }
+
+  // 2) آيباد الحديث يتنكّر كماك — نكشفه باللمس
+  const touch = (navigator.maxTouchPoints || 0) > 1;
+  if (/iPad/i.test(ua) || (/Macintosh/i.test(ua) && touch)) return "tablet";
+  if (/iPhone|iPod/i.test(ua)) return "phone";
+  if (/Android/i.test(ua)) return /Mobile/i.test(ua) ? "phone" : "tablet";
+  if (/Windows Phone|IEMobile|BlackBerry|Opera Mini/i.test(ua)) return "phone";
+
+  // 3) بلا لمس ومؤشر دقيق ⇒ كمبيوتر
+  const finePointer = window.matchMedia?.("(pointer: fine)")?.matches;
+  if (!touch && finePointer !== false) return "desktop";
+
+  // 4) الحكم بالمقاس كملاذ أخير
+  const w = Math.min(screen.width || 0, screen.height || 0);
+  if (touch && w && w <= 500) return "phone";
+  if (touch && w && w <= 900) return "tablet";
+  return "desktop";
+}
+
+export const isPhoneDevice   = () => deviceKind() === "phone";
+export const isTabletDevice  = () => deviceKind() === "tablet";
+export const isDesktopDevice = () => deviceKind() === "desktop";
+/** أجهزة محمولة (هاتف أو لوحي) */
+export const isHandheld = () => deviceKind() !== "desktop";
+
+/** اسم عربي واضح للجهاز يظهر في لوحة المدير */
+export function deviceLabel() {
+  const ua = navigator.userAgent || "";
+  const kind = deviceKind();
+  const os = /Android/i.test(ua) ? "أندرويد"
+    : /iPhone|iPad|iPod/i.test(ua) ? "آيفون/آيباد"
+    : /Windows/i.test(ua) ? "ويندوز"
+    : /Mac/i.test(ua) ? "ماك"
+    : /Linux/i.test(ua) ? "لينكس" : "";
+  const base = kind === "phone" ? "هاتف" : kind === "tablet" ? "جهاز لوحي" : "كمبيوتر";
+  return os ? `${base} ${os}` : base;
+}
+
 export function deviceId() {
   let id = LS.get("az_device_id");
   if (!id) { id = "dev_" + Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4); LS.set("az_device_id", id); }

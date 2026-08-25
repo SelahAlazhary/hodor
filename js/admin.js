@@ -759,7 +759,8 @@ function paintDevices() {
   const tb = $("#devTable tbody");
   tb.innerHTML = devices.map(d => `
     <tr>
-      <td>${esc(d.name || "جهاز")}</td>
+      <td>${esc(d.name || "جهاز")}${d.kind ? `<br><span class="sub">${
+        d.kind === "phone" ? "هاتف" : d.kind === "tablet" ? "لوحي" : "كمبيوتر"}</span>` : ""}</td>
       <td>${relAr(d.lastSeen)}</td>
       <td><code>${esc(d.id)}</code></td>
       <td>${s.kioskDeviceId === d.id

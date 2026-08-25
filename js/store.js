@@ -9,6 +9,7 @@ import {
   onValue, query, orderByKey, startAt, endAt, limitToLast
 } from "./firebase.js";
 import { LS, dateKey, monthRange, hhmmToMin, toDate, normName, samePhone, deviceId,
+         deviceLabel, deviceKind,
          now, nowMs, instant, setClockOffset } from "./utils.js";
 
 /* ---------------- الإعدادات الافتراضية ---------------- */
@@ -211,7 +212,7 @@ const PC_TTL = 10 * 60 * 1000;
 export async function createPcRequest(pcId = deviceId()) {
   const code = Math.random().toString(36).slice(2, 8).toUpperCase();
   await update(ref(db, `${PATH.devices}/${pcId}`), {
-    name: "كمبيوتر", lastSeen: nowMs(),
+    name: deviceLabel(), kind: deviceKind(), lastSeen: nowMs(),
     pcLink: { code, status: "pending", at: nowMs(), exp: nowMs() + PC_TTL }
   });
   return code;
@@ -572,11 +573,9 @@ export const noticeFor = (notice, empId) =>
 export async function registerDevice() {
   const id = deviceId();
   const ua = navigator.userAgent;
-  const name = /Android/i.test(ua) ? "هاتف أندرويد"
-             : /iPhone|iPad/i.test(ua) ? "جهاز آيفون/آيباد"
-             : /Windows/i.test(ua) ? "كمبيوتر ويندوز"
-             : /Mac/i.test(ua) ? "جهاز ماك" : "جهاز";
-  enqueue(`${PATH.devices}/${id}`, { name, ua: ua.slice(0, 160), lastSeen: nowMs() });
+  enqueue(`${PATH.devices}/${id}`, {
+    name: deviceLabel(), kind: deviceKind(), ua: ua.slice(0, 160), lastSeen: nowMs()
+  });
   return id;
 }
 /** يحذف جهازاً من قائمة الأجهزة المسجّلة */

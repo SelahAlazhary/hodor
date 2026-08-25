@@ -2,7 +2,7 @@
 import {
   $, $$, esc, toast, fullDateAr, dateKey, monthKey, dateAr, dayAr,
   timeAr, minToHuman, minToHours, toDate, deviceId, hhmmToMin, now, nowMs, clockParts, clockOffset,
-  initials, instant, relAr, LS
+  initials, instant, relAr, isDesktopDevice, LS
 } from "./utils.js";
 import { getPublicIP, ipMatches } from "./network.js";
 import { empPinHash, verifyEmpPin } from "./auth.js";
@@ -433,7 +433,7 @@ function watchMyNotices() {
 }
 
 /* ---------- كلمة مرور الحضور وتأكيد الكمبيوتر ---------- */
-const isDesktop = () => !/Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+const isDesktop = () => isDesktopDevice();
 
 function bindPinForm() {
   const form = $("#empPinForm"); if (!form) return;

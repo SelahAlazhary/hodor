@@ -1,5 +1,6 @@
 /* ===== نقطة البداية: الإقلاع، الدخول، التوجيه، تثبيت التطبيق ===== */
-import { $, $$, LS, toast, esc, normName, deviceId, initials } from "./utils.js";
+import { $, $$, LS, toast, esc, normName, deviceId, initials,
+         deviceKind, isDesktopDevice, isHandheld } from "./utils.js";
 import { getSettings, watchSettings, watchEmployees, findEmployee, registerDevice,
          bindDevice, consumeBindToken, watchConnection, watchServerClock,
          createPcRequest, watchPcRequest, approvePcRequest, clearPcRequest,
@@ -58,7 +59,7 @@ export function isInstalled() {
       || document.referrer.startsWith("android-app://");
 }
 const isIOS = () => /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-const isPhone = () => /Android|iPad|iPhone|iPod|Mobile/i.test(navigator.userAgent);
+const isPhone = () => isHandheld();
 
 /** هل يجب إجبار هذا الجهاز على التثبيت قبل الدخول؟ */
 function mustInstall() {
@@ -165,8 +166,12 @@ $("#admLogout")?.addEventListener("click", () => { if (confirm("تسجيل ال�
 $$("#loginTabs .tab").forEach(t => t.addEventListener("click", () => {
   $$("#loginTabs .tab").forEach(x => x.classList.remove("active"));
   t.classList.add("active");
-  $("#empLoginForm").classList.toggle("active", t.dataset.tab === "emp");
-  $("#admLoginForm").classList.toggle("active", t.dataset.tab === "adm");
+  const emp = t.dataset.tab === "emp";
+  const pcPane = $("#pcLoginPane");
+  const usePcQr = emp && isPC() && !pcPane.hidden;
+  $("#empLoginForm").classList.toggle("active", emp && !usePcQr);
+  pcPane.classList.toggle("active", usePcQr);
+  $("#admLoginForm").classList.toggle("active", !emp);
   $("#loginError").hidden = true;
 }));
 
@@ -284,13 +289,14 @@ export function startSession() {
 }
 
 /* ---------- دخول الكمبيوتر بمسح رمز من الهاتف ---------- */
-const isPC = () => !/Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+const isPC = () => isDesktopDevice();
 let unsubPc = null;
 
 /** يعرض رمز الدخول على الكمبيوتر وينتظر موافقة الهاتف */
 async function startPcLogin() {
   if (!isPC()) return;
   $("#pcLoginPane").hidden = false;
+  $("#pcLoginPane").classList.add("active");     // بدونه يبقى مخفياً بقاعدة .tabpane
   $("#empLoginForm").classList.remove("active");
   const img = $("#pcQrImg"), st = $("#pcQrState");
   st.className = "pill pill-idle"; st.textContent = "جارٍ تجهيز الرمز…";
@@ -325,6 +331,7 @@ async function startPcLogin() {
 $("#pcQrRefresh")?.addEventListener("click", startPcLogin);
 $("#pcUseForm")?.addEventListener("click", () => {
   $("#pcLoginPane").hidden = true;
+  $("#pcLoginPane").classList.remove("active");
   $("#empLoginForm").classList.add("active");
   unsubPc?.(); unsubPc = null;
 });
