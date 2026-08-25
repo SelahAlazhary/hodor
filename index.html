@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=5" />
+<title>سلاح الأزهري — نظام الحضور والانصراف</title>
+<meta name="description" content="نظام حضور وانصراف متكامل لشركة سلاح الأزهري" />
+<meta name="theme-color" content="#0b6b3a" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="حضور الأزهري" />
+<link rel="manifest" href="./manifest.webmanifest" />
+<link rel="icon" href="./icons/icon-192.png" />
+<link rel="apple-touch-icon" href="./icons/icon-192.png" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="./css/app.css" />
+</head>
+<body>
+
+<div id="boot" class="boot">
+  <img src="./icons/icon-192.png" alt="" width="86" height="86" />
+  <div class="boot-name">سلاح الأزهري</div>
+  <div class="spinner"></div>
+</div>
+
+<div id="netbar" class="netbar" hidden>
+  <span class="dot"></span> لا يوجد اتصال — يتم الحفظ محلياً وسيُرفع تلقائياً عند عودة الإنترنت
+</div>
+
+<!-- ═══════════════ شاشة الدخول ═══════════════ -->
+<section id="view-login" class="view">
+  <div class="login-wrap">
+    <div class="brand">
+      <img src="./icons/icon-192.png" alt="شعار سلاح الأزهري" class="brand-logo" />
+      <h1>سلاح الأزهري</h1>
+      <p>نظام الحضور والانصراف الإلكتروني</p>
+    </div>
+
+    <div class="card login-card">
+      <div class="tabs" id="loginTabs">
+        <button class="tab active" data-tab="emp">موظف</button>
+        <button class="tab" data-tab="adm">مدير</button>
+      </div>
+
+      <!-- دخول الموظف -->
+      <form id="empLoginForm" class="tabpane active" autocomplete="off">
+        <label class="field">
+          <span>اكتب اسمك</span>
+          <input id="empNameInput" type="text" placeholder="مثال: محمد أحمد" list="empNamesList" required />
+          <datalist id="empNamesList"></datalist>
+        </label>
+        <div id="empSuggest" class="suggest"></div>
+        <button class="btn btn-primary btn-lg" type="submit">دخول</button>
+        <p class="hint">اكتب اسمك كما هو مسجَّل لدى الإدارة.</p>
+      </form>
+
+      <!-- دخول المدير -->
+      <form id="admLoginForm" class="tabpane" autocomplete="off">
+        <label class="field">
+          <span>كلمة مرور المدير</span>
+          <input id="admPassInput" type="password" placeholder="••••••••" required />
+        </label>
+        <button class="btn btn-dark btn-lg" type="submit">دخول لوحة التحكم</button>
+        <p class="hint">كلمة المرور الافتراضية عند أول تشغيل: <b>azhari2026</b></p>
+      </form>
+
+      <div id="loginError" class="alert error" hidden></div>
+    </div>
+
+    <button id="installBtn" class="btn btn-ghost install-btn" hidden>📲 تثبيت التطبيق على الهاتف</button>
+    <p class="foot">© سلاح الأزهري — جميع الحقوق محفوظة</p>
+  </div>
+</section>
+
+<!-- ═══════════════ واجهة الموظف ═══════════════ -->
+<section id="view-emp" class="view">
+  <header class="topbar">
+    <div class="topbar-id">
+      <img src="./icons/icon-192.png" alt="" class="topbar-logo" />
+      <div>
+        <strong id="empHeadName">—</strong>
+        <small id="empHeadDate">—</small>
+      </div>
+    </div>
+    <button id="empLogout" class="icon-btn" title="خروج">⏻</button>
+  </header>
+
+  <main class="page">
+    <div id="empKioskBar" class="kiosk-bar" hidden>
+      <b>وضع جهاز التسجيل (كشك)</b>
+      <span>هذا الجهاز معتمد لتسجيل حضور جميع الموظفين</span>
+      <select id="kioskEmpSelect" class="select"></select>
+    </div>
+
+    <div class="clock-card card">
+      <div id="bigClock" class="big-clock">--:--:--</div>
+      <div id="bigDate" class="big-date">—</div>
+      <div id="statusPill" class="pill pill-idle">لم يتم تسجيل الحضور بعد</div>
+    </div>
+
+    <div class="action-grid">
+      <button id="btnCheckIn" class="action action-in">
+        <span class="action-ico">🟢</span>
+        <span class="action-title">تسجيل حضور</span>
+        <span class="action-sub" id="inTimeLbl">—</span>
+      </button>
+      <button id="btnCheckOut" class="action action-out">
+        <span class="action-ico">🔴</span>
+        <span class="action-title">تسجيل انصراف</span>
+        <span class="action-sub" id="outTimeLbl">—</span>
+      </button>
+      <button id="btnAbsence" class="action action-abs">
+        <span class="action-ico">🚫</span>
+        <span class="action-title">تسجيل غياب</span>
+        <span class="action-sub">إبلاغ الإدارة بعدم الحضور</span>
+      </button>
+      <button id="btnChat" class="action action-chat">
+        <span class="action-ico">💬</span>
+        <span class="action-title">مراسلة المدير</span>
+        <span class="action-sub"><span id="empUnread" class="badge" hidden>0</span>محادثة مباشرة</span>
+      </button>
+    </div>
+
+    <div class="stats-row">
+      <div class="stat card"><span class="stat-val" id="stMonthHours">0</span><span class="stat-lbl">ساعات هذا الشهر</span></div>
+      <div class="stat card"><span class="stat-val" id="stDays">0</span><span class="stat-lbl">أيام الحضور</span></div>
+      <div class="stat card"><span class="stat-val" id="stLate">0</span><span class="stat-lbl">مرات التأخير</span></div>
+      <div class="stat card"><span class="stat-val" id="stAbsent">0</span><span class="stat-lbl">أيام الغياب</span></div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <h3>سجل الشهر</h3>
+        <input id="empMonth" type="month" class="input-sm" />
+      </div>
+      <div class="table-wrap">
+        <table class="table" id="empHistTable">
+          <thead><tr><th>اليوم</th><th>التاريخ</th><th>حضور</th><th>انصراف</th><th>الساعات</th><th>الحالة</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div id="empHistEmpty" class="empty" hidden>لا توجد سجلات في هذا الشهر</div>
+    </div>
+  </main>
+</section>
+
+<!-- ═══════════════ لوحة المدير ═══════════════ -->
+<section id="view-admin" class="view">
+  <header class="topbar topbar-dark">
+    <div class="topbar-id">
+      <img src="./icons/icon-192.png" alt="" class="topbar-logo" />
+      <div><strong>لوحة تحكم المدير</strong><small id="admHeadDate">—</small></div>
+    </div>
+    <div class="topbar-actions">
+      <button id="admBell" class="icon-btn" title="الإشعارات">🔔<span id="admBellBadge" class="badge" hidden>0</span></button>
+      <button id="admLogout" class="icon-btn" title="خروج">⏻</button>
+    </div>
+  </header>
+
+  <nav class="admnav">
+    <button class="navbtn active" data-pane="dash">📊 الرئيسية</button>
+    <button class="navbtn" data-pane="today">🕒 حضور اليوم</button>
+    <button class="navbtn" data-pane="emps">👥 الموظفون</button>
+    <button class="navbtn" data-pane="report">📅 التقرير الشهري</button>
+    <button class="navbtn" data-pane="chat">💬 الرسائل<span id="admChatBadge" class="badge" hidden>0</span></button>
+    <button class="navbtn" data-pane="settings">⚙️ الإعدادات</button>
+  </nav>
+
+  <main class="page">
+    <!-- الرئيسية -->
+    <div class="pane active" id="pane-dash">
+      <div class="kpi-grid">
+        <div class="kpi card k-green"><span id="kTotal">0</span><small>إجمالي الموظفين</small></div>
+        <div class="kpi card k-blue"><span id="kPresent">0</span><small>حاضر اليوم</small></div>
+        <div class="kpi card k-amber"><span id="kLate">0</span><small>متأخر اليوم</small></div>
+        <div class="kpi card k-red"><span id="kAbsent">0</span><small>غائب اليوم</small></div>
+        <div class="kpi card k-teal"><span id="kOut">0</span><small>انصرف</small></div>
+        <div class="kpi card k-purple"><span id="kHours">0</span><small>ساعات اليوم</small></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h3>آخر الأحداث</h3><button id="clearFeed" class="btn btn-ghost btn-xs">مسح</button></div>
+        <ul id="feedList" class="feed"></ul>
+        <div id="feedEmpty" class="empty">لا توجد أحداث بعد</div>
+      </div>
+    </div>
+
+    <!-- حضور اليوم -->
+    <div class="pane" id="pane-today">
+      <div class="card">
+        <div class="card-head">
+          <h3>سجل يوم <span id="todayLbl">—</span></h3>
+          <div class="row-gap">
+            <input id="todayDate" type="date" class="input-sm" />
+            <button id="markAllAbsent" class="btn btn-danger btn-xs">تعليم الغائبين</button>
+            <button id="exportToday" class="btn btn-ghost btn-xs">⬇ تصدير</button>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table class="table" id="todayTable">
+            <thead><tr><th>الموظف</th><th>حضور</th><th>انصراف</th><th>الساعات</th><th>الحالة</th><th>إجراءات</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- الموظفون -->
+    <div class="pane" id="pane-emps">
+      <div class="card">
+        <div class="card-head"><h3>إضافة موظف</h3></div>
+        <form id="empForm" class="form-grid" autocomplete="off">
+          <input type="hidden" id="empId" />
+          <label class="field"><span>الاسم الكامل *</span><input id="fName" type="text" required placeholder="محمد أحمد" /></label>
+          <label class="field"><span>الوظيفة</span><input id="fJob" type="text" placeholder="مدرس" /></label>
+          <label class="field"><span>رقم الهاتف</span><input id="fPhone" type="tel" placeholder="01xxxxxxxxx" /></label>
+          <label class="field"><span>بداية الدوام</span><input id="fStart" type="time" /></label>
+          <label class="field"><span>نهاية الدوام</span><input id="fEnd" type="time" /></label>
+          <label class="field"><span>الحالة</span>
+            <select id="fActive" class="select"><option value="1">نشط</option><option value="0">موقوف</option></select>
+          </label>
+          <div class="form-actions">
+            <button class="btn btn-primary" type="submit">حفظ</button>
+            <button class="btn btn-ghost" type="button" id="empFormReset">إلغاء</button>
+          </div>
+        </form>
+      </div>
+      <div class="card">
+        <div class="card-head"><h3>قائمة الموظفين (<span id="empCount">0</span>)</h3>
+          <input id="empSearch" class="input-sm" type="search" placeholder="بحث بالاسم…" /></div>
+        <div class="table-wrap">
+          <table class="table" id="empsTable">
+            <thead><tr><th>الاسم</th><th>الوظيفة</th><th>الهاتف</th><th>الدوام</th><th>الحالة</th><th>إجراءات</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- التقرير الشهري -->
+    <div class="pane" id="pane-report">
+      <div class="card">
+        <div class="card-head">
+          <h3>التقرير الشهري</h3>
+          <div class="row-gap">
+            <input id="repMonth" type="month" class="input-sm" />
+            <button id="exportRep" class="btn btn-ghost btn-xs">⬇ تصدير Excel/CSV</button>
+            <button id="printRep" class="btn btn-ghost btn-xs">🖨 طباعة</button>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table class="table" id="repTable">
+            <thead><tr><th>الموظف</th><th>أيام الحضور</th><th>الغياب</th><th>التأخير</th><th>إجمالي الساعات</th><th>متوسط اليوم</th><th>تفاصيل</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <div class="rep-total">إجمالي ساعات الشركة هذا الشهر: <b id="repGrand">0</b> ساعة</div>
+      </div>
+      <div class="card" id="repDetailCard" hidden>
+        <div class="card-head"><h3>تفاصيل: <span id="repDetailName"></span></h3>
+          <button id="repDetailClose" class="btn btn-ghost btn-xs">إغلاق</button></div>
+        <div class="table-wrap">
+          <table class="table" id="repDetailTable">
+            <thead><tr><th>التاريخ</th><th>اليوم</th><th>حضور</th><th>انصراف</th><th>ساعات</th><th>الحالة</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- الرسائل -->
+    <div class="pane" id="pane-chat">
+      <div class="chat-layout">
+        <aside class="card chat-list">
+          <div class="card-head"><h3>المحادثات</h3></div>
+          <ul id="convList" class="conv-list"></ul>
+        </aside>
+        <div class="card chat-box">
+          <div class="card-head"><h3 id="chatWith">اختر موظفاً</h3></div>
+          <div id="admChatMsgs" class="msgs"></div>
+          <form id="admChatForm" class="chat-form">
+            <input id="admChatInput" type="text" placeholder="اكتب رسالة…" autocomplete="off" />
+            <button class="btn btn-primary" type="submit">إرسال</button>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- الإعدادات -->
+    <div class="pane" id="pane-settings">
+      <div class="card">
+        <div class="card-head"><h3>إعدادات الدوام</h3></div>
+        <form id="setForm" class="form-grid">
+          <label class="field"><span>اسم الشركة</span><input id="sCompany" type="text" /></label>
+          <label class="field"><span>بداية الدوام الافتراضية</span><input id="sStart" type="time" /></label>
+          <label class="field"><span>نهاية الدوام الافتراضية</span><input id="sEnd" type="time" /></label>
+          <label class="field"><span>سماح التأخير (دقيقة)</span><input id="sGrace" type="number" min="0" max="180" /></label>
+          <label class="field"><span>ساعات العمل اليومية المطلوبة</span><input id="sDaily" type="number" min="1" max="24" step="0.5" /></label>
+          <label class="field"><span>كلمة مرور المدير</span><input id="sPass" type="text" /></label>
+          <div class="form-actions"><button class="btn btn-primary" type="submit">حفظ الإعدادات</button></div>
+        </form>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h3>حساب تسجيل الحضور</h3></div>
+        <p class="hint">اختر الطريقة التي يُسجَّل بها حضور الموظفين.</p>
+        <div class="radio-list">
+          <label class="radio"><input type="radio" name="mode" value="self" /> <b>كل موظف من حسابه</b><small>يسجّل كل موظف حضوره من هاتفه</small></label>
+          <label class="radio"><input type="radio" name="mode" value="kiosk" /> <b>جهاز/حساب محدد فقط (كشك)</b><small>جهاز واحد معتمد يسجّل حضور الجميع</small></label>
+          <label class="radio"><input type="radio" name="mode" value="both" /> <b>الاثنان معاً</b><small>الجهاز المعتمد + حساب كل موظف</small></label>
+        </div>
+        <div class="card-head"><h3>الأجهزة المسجّلة</h3><button id="refreshDev" class="btn btn-ghost btn-xs">تحديث</button></div>
+        <div class="table-wrap">
+          <table class="table" id="devTable">
+            <thead><tr><th>اسم الجهاز</th><th>آخر استخدام</th><th>المعرّف</th><th>معتمد</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <div id="devEmpty" class="empty">لا توجد أجهزة مسجّلة بعد — افتح النظام من جهاز الاستقبال ليظهر هنا.</div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h3>الإشعارات والتطبيق</h3></div>
+        <div class="row-gap wrap">
+          <button id="admEnableNotif" class="btn btn-primary">تفعيل إشعارات الحضور</button>
+          <button id="admTestNotif" class="btn btn-ghost">إشعار تجريبي</button>
+          <span id="notifState" class="pill pill-idle">—</span>
+        </div>
+      </div>
+    </div>
+  </main>
+</section>
+
+<!-- ═══════════════ نافذة شات الموظف ═══════════════ -->
+<div id="chatModal" class="modal" hidden>
+  <div class="modal-card">
+    <div class="modal-head"><h3>💬 مراسلة المدير</h3><button id="chatClose" class="icon-btn">✕</button></div>
+    <div id="empChatMsgs" class="msgs"></div>
+    <form id="empChatForm" class="chat-form">
+      <input id="empChatInput" type="text" placeholder="اكتب رسالتك…" autocomplete="off" />
+      <button class="btn btn-primary" type="submit">إرسال</button>
+    </form>
+  </div>
+</div>
+
+<div id="toast" class="toast" hidden></div>
+
+<script type="module" src="./js/app.js"></script>
+</body>
+</html>

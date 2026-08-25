@@ -1,0 +1,474 @@
+/* ===== لوحة تحكم المدير ===== */
+import {
+  $, $$, esc, toast, dateKey, monthKey, dateAr, dayAr, fullDateAr, timeAr,
+  minToHuman, minToHours, relAr, toDate, downloadCSV, LS
+} from "./utils.js";
+import {
+  watchDay, getMonth, summarize, markAbsent, clearRecord, editTimes,
+  addEmployee, updateEmployee, removeEmployee, setRecord,
+  saveSettings, watchEvents, clearEvents, watchDevices,
+  sendMessage, watchAllMessages, markThreadRead
+} from "./store.js";
+import { notify, askPermission, notifState, buzz } from "./notify.js";
+import { statusTag } from "./employee.js";
+
+let ST = null;
+let unsubDay = null, unsubEvents = null, unsubMsgs = null, unsubDevices = null;
+let dayRows = [], allMsgs = [], devices = [], activeConv = null;
+let seenEvents = new Set(), eventsPrimed = false, msgsPrimed = false, seenMsgs = new Set();
+let curDate = dateKey();
+
+export function disposeAdmin() {
+  unsubDay?.(); unsubEvents?.(); unsubMsgs?.(); unsubDevices?.();
+  unsubDay = unsubEvents = unsubMsgs = unsubDevices = null;
+  dayRows = []; allMsgs = []; devices = []; activeConv = null;
+  seenEvents = new Set(); seenMsgs = new Set();
+  eventsPrimed = msgsPrimed = false;
+  document.removeEventListener("az:employees", refreshOnEmployees);
+}
+
+export function initAdmin(state) {
+  disposeAdmin();
+  ST = state;
+  curDate = dateKey();
+
+  $("#admHeadDate").textContent = fullDateAr();
+  $("#todayDate").value = curDate;
+  $("#repMonth").value = monthKey();
+  $("#notifState").textContent = notifLabel();
+
+  bindNav();
+  bindToday();
+  bindEmployees();
+  bindReport();
+  bindChat();
+  bindSettings();
+
+  startDay();
+  unsubEvents = watchEvents(onEvents);
+  unsubMsgs = watchAllMessages(onMessages);
+  unsubDevices = watchDevices(list => { devices = list; paintDevices(); });
+
+  document.addEventListener("az:employees", refreshOnEmployees);
+  paintEmployees(); fillSettings(); loadReport();
+}
+
+function refreshOnEmployees() { paintEmployees(); paintDash(); paintToday(); }
+
+/* ---------- التنقل ---------- */
+function bindNav() {
+  $$(".navbtn").forEach(b => b.onclick = () => {
+    $$(".navbtn").forEach(x => x.classList.remove("active"));
+    b.classList.add("active");
+    $$(".pane").forEach(p => p.classList.remove("active"));
+    $("#pane-" + b.dataset.pane).classList.add("active");
+    if (b.dataset.pane === "report") loadReport();
+    if (b.dataset.pane === "chat") { $("#admChatBadge").hidden = true; }
+    window.scrollTo(0, 0);
+  });
+  $("#admBell").onclick = async () => {
+    const ok = await askPermission();
+    toast(ok ? "تم تفعيل إشعارات الحضور ✅" : "لم يتم تفعيل الإشعارات", ok ? "ok" : "err");
+    $("#notifState").textContent = notifLabel();
+    $("#admBellBadge").hidden = true;
+  };
+}
+const notifLabel = () => ({ granted: "الإشعارات مفعّلة ✅", denied: "الإشعارات محظورة ❌", default: "الإشعارات غير مفعّلة", unsupported: "غير مدعومة" })[notifState()];
+
+/* ---------- بيانات اليوم ---------- */
+function startDay() {
+  unsubDay?.();
+  unsubDay = watchDay(curDate, rows => {
+    dayRows = rows.slice().sort((a, b) => String(a.empName).localeCompare(String(b.empName), "ar"));
+    paintDash(); paintToday();
+  });
+}
+
+function paintDash() {
+  const emps = (ST.employees || []).filter(e => e.active !== false);
+  const present = dayRows.filter(r => r.checkIn);
+  const late = present.filter(r => r.status === "late");
+  const out = present.filter(r => r.checkOut);
+  const absentMarked = dayRows.filter(r => r.status === "absent").length;
+  const notIn = emps.filter(e => !dayRows.some(r => r.empId === e.id && r.checkIn)).length;
+  const mins = present.reduce((a, r) => a + Number(r.workedMin || 0), 0);
+
+  $("#kTotal").textContent = emps.length;
+  $("#kPresent").textContent = present.length;
+  $("#kLate").textContent = late.length;
+  $("#kAbsent").textContent = notIn;   // من لم يسجّل حضوراً (يشمل المسجّلين كغياب)
+  $("#kOut").textContent = out.length;
+  $("#kHours").textContent = minToHours(mins);
+}
+
+/* ---------- جدول اليوم ---------- */
+function bindToday() {
+  $("#todayDate").onchange = e => {
+    curDate = e.target.value || dateKey();
+    startDay();
+  };
+  $("#markAllAbsent").onclick = async () => {
+    const emps = (ST.employees || []).filter(e => e.active !== false)
+      .filter(e => !dayRows.some(r => r.empId === e.id));
+    if (!emps.length) { toast("لا يوجد موظفون بدون سجل في هذا اليوم"); return; }
+    if (!confirm(`سيتم تسجيل غياب لـ ${emps.length} موظف في يوم ${dateAr(curDate)}. متابعة؟`)) return;
+    for (const e of emps) await markAbsent(e, curDate, "تسجيل جماعي", "admin");
+    toast(`تم تسجيل غياب ${emps.length} موظف`, "ok");
+  };
+  $("#exportToday").onclick = () => {
+    const rows = [["الموظف", "التاريخ", "الحضور", "الانصراف", "الساعات", "الحالة"]];
+    dayRows.forEach(r => rows.push([r.empName, r.date,
+      r.checkIn ? timeAr(r.checkIn) : "", r.checkOut ? timeAr(r.checkOut) : "",
+      minToHours(r.workedMin), statusAr(r)]));
+    downloadCSV(`حضور-${curDate}.csv`, rows);
+  };
+}
+
+const statusAr = r => r.status === "absent" ? "غياب" : r.checkOut ? "انصرف" : r.status === "late" ? "متأخر" : r.checkIn ? "حاضر" : "—";
+
+function paintToday() {
+  $("#todayLbl").textContent = `${dayAr(curDate)} ${dateAr(curDate)}`;
+  const emps = (ST.employees || []).filter(e => e.active !== false);
+  const tb = $("#todayTable tbody");
+
+  const rows = emps.map(e => {
+    const r = dayRows.find(x => x.empId === e.id) || { empId: e.id, empName: e.name, date: curDate };
+    return { emp: e, r };
+  });
+
+  tb.innerHTML = rows.map(({ emp, r }) => `
+    <tr>
+      <td><b>${esc(emp.name)}</b><br><small style="color:var(--muted)">${esc(emp.job || "")}</small></td>
+      <td>${r.checkIn ? timeAr(r.checkIn) : "—"}</td>
+      <td>${r.checkOut ? timeAr(r.checkOut) : "—"}</td>
+      <td>${r.checkOut ? minToHuman(r.workedMin) : (r.checkIn ? "جارٍ" : "—")}</td>
+      <td>${statusTag(r)}</td>
+      <td>
+        ${r.status !== "absent" ? `<button class="mini danger" data-act="abs" data-id="${emp.id}">غياب</button>` : ""}
+        <button class="mini" data-act="edit" data-id="${emp.id}">تعديل</button>
+        ${r.checkIn || r.status === "absent" ? `<button class="mini" data-act="del" data-id="${emp.id}">مسح</button>` : ""}
+      </td>
+    </tr>`).join("");
+
+  tb.querySelectorAll("button[data-act]").forEach(b => b.onclick = () => todayAction(b.dataset.act, b.dataset.id));
+}
+
+async function todayAction(act, empId) {
+  const emp = ST.employees.find(e => e.id === empId); if (!emp) return;
+  if (act === "abs") {
+    const note = prompt(`سبب غياب ${emp.name} (اختياري):`, ""); if (note === null) return;
+    await markAbsent(emp, curDate, note || "", "admin");
+    toast("تم تسجيل الغياب", "ok");
+  }
+  if (act === "del") {
+    if (!confirm(`مسح سجل ${emp.name} ليوم ${dateAr(curDate)}؟`)) return;
+    await clearRecord(curDate, empId);
+    toast("تم المسح", "ok");
+  }
+  if (act === "edit") {
+    const r = dayRows.find(x => x.empId === empId) || {};
+    const cin = prompt("ساعة الحضور (HH:MM) — اتركه فارغاً للإلغاء:", r.checkIn ? hhmm(r.checkIn) : "09:00");
+    if (cin === null) return;
+    const cout = prompt("ساعة الانصراف (HH:MM) — اتركه فارغاً إن لم ينصرف:", r.checkOut ? hhmm(r.checkOut) : "");
+    if (cout === null) return;
+    const iso = t => t && /^\d{1,2}:\d{2}$/.test(t.trim()) ? new Date(`${curDate}T${t.trim().padStart(5, "0")}:00`).toISOString() : null;
+    const inISO = iso(cin), outISO = iso(cout);
+    if (!inISO) { toast("صيغة الوقت غير صحيحة", "err"); return; }
+    const base = {
+      empId, empName: emp.name, date: curDate, checkIn: inISO, checkOut: outISO,
+      workedMin: outISO ? Math.max(0, Math.round((new Date(outISO) - new Date(inISO)) / 60000)) : 0,
+      status: "present", editedByAdmin: true
+    };
+    await setRecord(curDate, empId, base);
+    toast("تم تعديل السجل", "ok");
+  }
+}
+const hhmm = v => { const d = toDate(v); return d ? `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}` : ""; };
+
+/* ---------- الموظفون ---------- */
+function bindEmployees() {
+  $("#empForm").onsubmit = async e => {
+    e.preventDefault();
+    const id = $("#empId").value;
+    const data = {
+      name: $("#fName").value.trim(),
+      job: $("#fJob").value.trim(),
+      phone: $("#fPhone").value.trim(),
+      workStart: $("#fStart").value,
+      workEnd: $("#fEnd").value,
+      active: $("#fActive").value === "1"
+    };
+    if (!data.name) return;
+    try {
+      if (id) { await updateEmployee(id, data); toast("تم تحديث بيانات الموظف", "ok"); }
+      else { await addEmployee(data); toast("تمت إضافة الموظف ✅", "ok"); }
+      resetEmpForm();
+    } catch (err) { toast("خطأ في الحفظ: " + err.message, "err"); }
+  };
+  $("#empFormReset").onclick = resetEmpForm;
+  $("#empSearch").oninput = paintEmployees;
+}
+function resetEmpForm() {
+  $("#empForm").reset(); $("#empId").value = "";
+  $("#empForm").querySelector('button[type="submit"]').textContent = "حفظ";
+}
+
+function paintEmployees() {
+  const q = ($("#empSearch")?.value || "").trim();
+  const list = (ST?.employees || []).filter(e => !q || String(e.name).includes(q));
+  $("#empCount").textContent = (ST?.employees || []).length;
+  const tb = $("#empsTable tbody");
+  tb.innerHTML = list.map(e => `
+    <tr>
+      <td><b>${esc(e.name)}</b></td>
+      <td>${esc(e.job || "—")}</td>
+      <td>${esc(e.phone || "—")}</td>
+      <td>${e.workStart || "—"} → ${e.workEnd || "—"}</td>
+      <td>${e.active === false ? '<span class="tag t-absent">موقوف</span>' : '<span class="tag t-present">نشط</span>'}</td>
+      <td>
+        <button class="mini" data-e="edit" data-id="${e.id}">تعديل</button>
+        <button class="mini" data-e="chat" data-id="${e.id}">رسالة</button>
+        <button class="mini danger" data-e="del" data-id="${e.id}">حذف</button>
+      </td>
+    </tr>`).join("");
+
+  tb.querySelectorAll("button[data-e]").forEach(b => b.onclick = async () => {
+    const emp = ST.employees.find(x => x.id === b.dataset.id); if (!emp) return;
+    if (b.dataset.e === "edit") {
+      $("#empId").value = emp.id; $("#fName").value = emp.name; $("#fJob").value = emp.job || "";
+      $("#fPhone").value = emp.phone || ""; $("#fStart").value = emp.workStart || "";
+      $("#fEnd").value = emp.workEnd || ""; $("#fActive").value = emp.active === false ? "0" : "1";
+      $("#empForm").querySelector('button[type="submit"]').textContent = "تحديث";
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+    if (b.dataset.e === "del") {
+      if (!confirm(`حذف ${emp.name} نهائياً؟ (سجلات الحضور السابقة تبقى محفوظة)`)) return;
+      await removeEmployee(emp.id); toast("تم الحذف", "ok");
+    }
+    if (b.dataset.e === "chat") { openConv(emp.id); $$(".navbtn").find(x => x.dataset.pane === "chat").click(); }
+  });
+}
+
+/* ---------- التقرير الشهري ---------- */
+let repRows = [];
+function bindReport() {
+  $("#repMonth").onchange = loadReport;
+  $("#exportRep").onclick = () => {
+    const mk = $("#repMonth").value;
+    const rows = [["الموظف", "أيام الحضور", "أيام الغياب", "مرات التأخير", "إجمالي الساعات", "متوسط اليوم (ساعة)"]];
+    repRows.forEach(x => rows.push([x.name, x.s.days, x.s.absent, x.s.late, x.s.hours, minToHours(x.s.avgMin)]));
+    rows.push([]);
+    rows.push(["إجمالي ساعات الشركة", "", "", "", repRows.reduce((a, x) => a + x.s.hours, 0).toFixed(2), ""]);
+    downloadCSV(`تقرير-${mk}.csv`, rows);
+  };
+  $("#printRep").onclick = () => window.print();
+  $("#repDetailClose").onclick = () => { $("#repDetailCard").hidden = true; };
+}
+
+async function loadReport() {
+  const mk = $("#repMonth").value || monthKey();
+  let all = [];
+  try { all = await getMonth(mk); } catch (e) { console.warn(e); toast("تعذّر تحميل التقرير", "err"); }
+  const emps = ST?.employees || [];
+  repRows = emps.map(e => ({ id: e.id, name: e.name, s: summarize(all.filter(r => r.empId === e.id)) }));
+
+  const tb = $("#repTable tbody");
+  tb.innerHTML = repRows.map(x => `
+    <tr>
+      <td><b>${esc(x.name)}</b></td>
+      <td>${x.s.days}</td>
+      <td>${x.s.absent}</td>
+      <td>${x.s.late}</td>
+      <td><b style="color:var(--green)">${x.s.hours}</b> ساعة</td>
+      <td>${minToHuman(x.s.avgMin)}</td>
+      <td><button class="mini" data-r="${x.id}">عرض</button></td>
+    </tr>`).join("");
+  $("#repGrand").textContent = repRows.reduce((a, x) => a + x.s.hours, 0).toFixed(2);
+
+  tb.querySelectorAll("button[data-r]").forEach(b => b.onclick = () => {
+    const id = b.dataset.r;
+    const emp = emps.find(e => e.id === id);
+    const rows = all.filter(r => r.empId === id).sort((a, b2) => a.date.localeCompare(b2.date));
+    $("#repDetailName").textContent = emp?.name || "";
+    $("#repDetailTable tbody").innerHTML = rows.map(r => `
+      <tr><td>${dateAr(r.date)}</td><td>${dayAr(r.date)}</td>
+      <td>${r.checkIn ? timeAr(r.checkIn) : "—"}</td>
+      <td>${r.checkOut ? timeAr(r.checkOut) : "—"}</td>
+      <td>${r.checkOut ? minToHuman(r.workedMin) : "—"}</td>
+      <td>${statusTag(r)}</td></tr>`).join("") || `<tr><td colspan="6" style="text-align:center;color:var(--muted)">لا توجد سجلات</td></tr>`;
+    $("#repDetailCard").hidden = false;
+    $("#repDetailCard").scrollIntoView({ behavior: "smooth" });
+  });
+}
+
+/* ---------- الأحداث والإشعارات ---------- */
+function onEvents(list) {
+  const ul = $("#feedList");
+  ul.innerHTML = list.map(ev => {
+    const ico = { in: "🟢", out: "🔴", abs: "🚫", msg: "💬" }[ev.type] || "•";
+    const cls = { in: "fi-in", out: "fi-out", abs: "fi-abs", msg: "fi-msg" }[ev.type] || "fi-in";
+    const txt = ev.type === "in" ? `سجّل حضوره${ev.status === "late" ? " (متأخر)" : ""} الساعة ${timeAr(ev.at)}`
+      : ev.type === "out" ? `سجّل انصرافه الساعة ${timeAr(ev.at)} — ${minToHuman(ev.workedMin)}`
+      : ev.type === "abs" ? `تم تسجيل غياب${ev.note ? " — " + esc(ev.note) : ""}`
+      : `أرسل رسالة: ${esc(ev.text || "")}`;
+    return `<li><span class="fi ${cls}">${ico}</span><span><b>${esc(ev.empName || "")}</b> ${txt}<small>${relAr(ev.createdAt || ev.at)}</small></span></li>`;
+  }).join("");
+  $("#feedEmpty").hidden = list.length > 0;
+
+  // إشعار فوري للمدير عند كل حدث جديد
+  if (!eventsPrimed) { list.forEach(e => seenEvents.add(e.id)); eventsPrimed = true; return; }
+  let newCount = 0;
+  for (const ev of list) {
+    if (seenEvents.has(ev.id)) continue;
+    seenEvents.add(ev.id); newCount++;
+    if (ev.type === "in") notify("🟢 حضور جديد", `${ev.empName} سجّل حضوره الساعة ${timeAr(ev.at)}${ev.status === "late" ? " (متأخر)" : ""}`, { tag: "adm-" + ev.id });
+    if (ev.type === "out") notify("🔴 انصراف", `${ev.empName} انصرف الساعة ${timeAr(ev.at)} — ${minToHuman(ev.workedMin)}`, { tag: "adm-" + ev.id });
+    if (ev.type === "abs") notify("🚫 غياب", `${ev.empName} — ${dateAr(ev.date)}${ev.note ? "\n" + ev.note : ""}`, { tag: "adm-" + ev.id });
+  }
+  if (newCount) {
+    buzz();
+    const b = $("#admBellBadge");
+    b.textContent = Number(b.textContent || 0) + newCount; b.hidden = false;
+  }
+}
+$("#clearFeed")?.addEventListener("click", async () => {
+  if (!confirm("مسح سجل الأحداث؟")) return;
+  await clearEvents(); toast("تم المسح", "ok");
+});
+
+/* ---------- الرسائل ---------- */
+function bindChat() {
+  $("#admChatForm").onsubmit = async e => {
+    e.preventDefault();
+    if (!activeConv) { toast("اختر موظفاً أولاً", "err"); return; }
+    const inp = $("#admChatInput"); const txt = inp.value.trim(); if (!txt) return;
+    inp.value = "";
+    const emp = ST.employees.find(x => x.id === activeConv);
+    await sendMessage(activeConv, emp?.name || "", "admin", txt);
+  };
+}
+
+function onMessages(list) {
+  allMsgs = list;
+  paintConvs();
+  if (activeConv) paintThread();
+
+  const unread = list.filter(m => m.from === "employee" && !m.readByAdmin);
+  const b = $("#admChatBadge");
+  if (unread.length) { b.textContent = unread.length; b.hidden = false; } else b.hidden = true;
+
+  if (!msgsPrimed) { list.forEach(m => seenMsgs.add(m.id)); msgsPrimed = true; return; }
+  for (const m of list) {
+    if (seenMsgs.has(m.id)) continue;
+    seenMsgs.add(m.id);
+    if (m.from === "employee") { buzz(); notify("💬 رسالة من " + (m.empName || "موظف"), m.text, { tag: "adm-msg" }); }
+  }
+}
+
+function paintConvs() {
+  const emps = ST?.employees || [];
+  const ul = $("#convList");
+  const items = emps.map(e => {
+    const th = allMsgs.filter(m => m.empId === e.id);
+    const last = th[th.length - 1];
+    const un = th.filter(m => m.from === "employee" && !m.readByAdmin).length;
+    return { e, last, un, ts: last?.ts || "" };
+  }).sort((a, b) => String(b.ts).localeCompare(String(a.ts)));
+
+  ul.innerHTML = items.map(i => `
+    <li data-c="${i.e.id}" class="${activeConv === i.e.id ? "active" : ""}">
+      <span>${esc(i.e.name)}<small>${i.last ? esc(String(i.last.text).slice(0, 30)) : "لا توجد رسائل"}</small></span>
+      ${i.un ? `<span class="badge">${i.un}</span>` : ""}
+    </li>`).join("");
+  ul.querySelectorAll("li[data-c]").forEach(li => li.onclick = () => openConv(li.dataset.c));
+}
+
+function openConv(empId) {
+  activeConv = empId;
+  const emp = ST.employees.find(e => e.id === empId);
+  $("#chatWith").textContent = emp ? `محادثة: ${emp.name}` : "محادثة";
+  paintConvs(); paintThread();
+  markThreadRead(allMsgs.filter(m => m.empId === empId), "admin");
+}
+
+function paintThread() {
+  const box = $("#admChatMsgs");
+  const th = allMsgs.filter(m => m.empId === activeConv);
+  box.innerHTML = th.map(m => `
+    <div class="msg ${m.from === "admin" ? "me" : "them"}">
+      ${esc(m.text)}<time>${timeAr(m.ts)}</time>
+    </div>`).join("") || `<div class="empty">لا توجد رسائل بعد</div>`;
+  box.scrollTop = box.scrollHeight;
+}
+
+/* ---------- الإعدادات ---------- */
+function fillSettings() {
+  const s = ST?.settings || {};
+  $("#sCompany").value = s.company || "";
+  $("#sStart").value = s.workStart || "09:00";
+  $("#sEnd").value = s.workEnd || "17:00";
+  $("#sGrace").value = s.graceMin ?? 15;
+  $("#sDaily").value = s.dailyHours ?? 8;
+  $("#sPass").value = s.adminPass || "";
+  const mode = s.checkinMode || "self";
+  $$('input[name="mode"]').forEach(r => r.checked = r.value === mode);
+}
+
+function bindSettings() {
+  $("#setForm").onsubmit = async e => {
+    e.preventDefault();
+    await saveSettings({
+      company: $("#sCompany").value.trim() || "سلاح الأزهري",
+      workStart: $("#sStart").value || "09:00",
+      workEnd: $("#sEnd").value || "17:00",
+      graceMin: Number($("#sGrace").value || 0),
+      dailyHours: Number($("#sDaily").value || 8),
+      adminPass: $("#sPass").value.trim() || "azhari2026"
+    });
+    toast("تم حفظ الإعدادات ✅", "ok");
+  };
+  $$('input[name="mode"]').forEach(r => r.onchange = async () => {
+    await saveSettings({ checkinMode: r.value });
+    toast("تم تحديث طريقة التسجيل", "ok");
+    if (r.value !== "self" && !(ST.settings?.kioskDeviceId))
+      toast("اختر الجهاز المعتمد من جدول الأجهزة بالأسفل");
+  });
+  $("#refreshDev").onclick = () => paintDevices();
+  $("#admEnableNotif").onclick = async () => {
+    const ok = await askPermission();
+    $("#notifState").textContent = notifLabel();
+    toast(ok ? "تم التفعيل ✅" : "لم يتم التفعيل", ok ? "ok" : "err");
+  };
+  $("#admTestNotif").onclick = async () => {
+    if (!await askPermission()) return;
+    notify("🔔 إشعار تجريبي", "إشعارات نظام الحضور تعمل بنجاح — سلاح الأزهري", { tag: "test" });
+  };
+}
+
+function paintDevices() {
+  const s = ST?.settings || {};
+  const tb = $("#devTable tbody");
+  tb.innerHTML = devices.map(d => `
+    <tr>
+      <td>${esc(d.name || "جهاز")}</td>
+      <td>${relAr(d.lastSeen)}</td>
+      <td><code style="font-size:11px">${esc(d.id)}</code></td>
+      <td>${s.kioskDeviceId === d.id
+        ? `<span class="tag t-present">معتمد</span> <button class="mini danger" data-d="off" data-id="${d.id}">إلغاء</button>`
+        : `<button class="mini ok" data-d="on" data-id="${d.id}" data-name="${esc(d.name || "")}">اعتماد</button>`}</td>
+    </tr>`).join("");
+  $("#devEmpty").hidden = devices.length > 0;
+
+  tb.querySelectorAll("button[data-d]").forEach(b => b.onclick = async () => {
+    if (b.dataset.d === "on") {
+      await saveSettings({ kioskDeviceId: b.dataset.id, kioskDeviceName: b.dataset.name });
+      toast("تم اعتماد الجهاز لتسجيل الحضور ✅", "ok");
+    } else {
+      await saveSettings({ kioskDeviceId: "", kioskDeviceName: "" });
+      toast("تم إلغاء اعتماد الجهاز", "ok");
+    }
+  });
+}
+
+/* تحديث الإعدادات لحظياً في اللوحة */
+document.addEventListener("az:settings", () => { fillSettings(); paintDevices(); });

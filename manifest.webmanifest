@@ -1,0 +1,23 @@
+{
+  "name": "سلاح الأزهري — الحضور والانصراف",
+  "short_name": "حضور الأزهري",
+  "description": "نظام حضور وانصراف متكامل مع حساب ساعات العمل تلقائياً",
+  "lang": "ar",
+  "dir": "rtl",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0b6b3a",
+  "theme_color": "#0b6b3a",
+  "categories": ["business", "productivity"],
+  "icons": [
+    { "src": "./icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "./icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "./icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "تسجيل حضور", "short_name": "حضور", "url": "./index.html#in", "icons": [{ "src": "./icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "لوحة المدير", "short_name": "المدير", "url": "./index.html#admin", "icons": [{ "src": "./icons/icon-192.png", "sizes": "192x192" }] }
+  ]
+}
