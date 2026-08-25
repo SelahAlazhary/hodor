@@ -240,9 +240,15 @@ function bindActions() {
     if (!r.ok) { toast(r.error, "err"); return; }
     buzz([100, 50, 100, 50, 160]);
     const i = timeAr(r.record.checkIn), o = timeAr(r.record.checkOut);
-    toast(`تم تسجيل الانصراف — ${minToHuman(r.record.workedMin)} ✅`, "ok");
+    const ot = Number(r.record.overtimeMin || 0);
+    const exc = Number(r.record.lateExcused || 0);
+    const otLine = ot > 0 ? `\n⏱ وقت إضافي: ${minToHuman(ot)}` : "";
+    const excLine = exc > 0 ? `\n✅ عُوِّض تأخيرك (${minToHuman(exc)}) بالوقت الإضافي` : "";
+    toast(exc > 0
+      ? `تم الانصراف — عُوِّض تأخيرك بالوقت الإضافي ✅`
+      : `تم تسجيل الانصراف — ${minToHuman(r.record.workedMin)} ✅`, "ok");
     notify("🔴 تم تسجيل الانصراف",
-      `${t.name}\nساعة الحضور: ${i}\nساعة الانصراف: ${o}\nإجمالي اليوم: ${minToHuman(r.record.workedMin)}`,
+      `${t.name}\nساعة الحضور: ${i}\nساعة الانصراف: ${o}\nإجمالي اليوم: ${minToHuman(r.record.workedMin)}${otLine}${excLine}`,
       { tag: "att-out", sticky: true });
     loadHistory();
   };
@@ -305,6 +311,8 @@ function otCell(r) {
 export function statusTag(r) {
   if (r.status === "absent") return '<span class="tag t-absent">غياب</span>';
   if (r.status === "late")   return '<span class="tag t-late">متأخر</span>';
+  if (Number(r.lateExcused) > 0)
+    return '<span class="tag t-excused" title="عُوِّض التأخير بالوقت الإضافي">تأخير معوَّض</span>';
   if (r.checkOut)            return '<span class="tag t-out">انصرف</span>';
   if (r.checkIn)             return '<span class="tag t-present">حاضر</span>';
   return '<span class="tag t-off">—</span>';

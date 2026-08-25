@@ -109,14 +109,15 @@ def weekday_num(dk: str) -> int:
 
 
 def time_ar(iso: str) -> str:
-    """يحوّل لحظة ISO إلى ساعة بتوقيت القاهرة بنظام 24 ساعة (17:05)."""
+    """يحوّل لحظة ISO إلى ساعة بتوقيت القاهرة بنظام 12 ساعة (05:05 م)."""
     if not iso:
         return "—"
     try:
         d = datetime.fromisoformat(str(iso).replace("Z", "+00:00")).astimezone(TZ)
     except Exception:
         return "—"
-    return f"{d.hour:02d}:{d.minute:02d}"
+    suffix = "ص" if d.hour < 12 else "م"
+    return f"{d.hour % 12 or 12:02d}:{d.minute:02d} {suffix}"
 
 
 def hhmm_to_min(t):
@@ -154,7 +155,7 @@ def overtime_min(rec: dict, emp: dict, settings: dict) -> int:
 
 
 def summarize(rows, emp, settings) -> dict:
-    s = {"days": 0, "absent": 0, "late": 0, "minutes": 0, "overtime": 0, "open": 0}
+    s = {"days": 0, "absent": 0, "late": 0, "minutes": 0, "overtime": 0, "open": 0, "excused": 0}
     for r in rows:
         if r.get("status") == "absent":
             s["absent"] += 1
@@ -166,6 +167,8 @@ def summarize(rows, emp, settings) -> dict:
             if r.get("checkOut"):
                 s["minutes"] += int(r.get("workedMin") or 0)
                 s["overtime"] += overtime_min(r, emp, settings)
+                if int(r.get("lateExcused") or 0) > 0:
+                    s["excused"] += 1
             else:
                 s["open"] += 1
     s["hours"] = min_to_hours(s["minutes"])
@@ -331,6 +334,14 @@ def monthly_report(month: str = Query(default=None, description="YYYY-MM")):
         [22, 15, 12, 12, 12, 11, 11, 11, 20],
     )
     status_ar = {"absent": "غياب", "late": "متأخر", "present": "حاضر"}
+    def st_of(r):
+        if r.get("status") == "absent":
+            return "غياب"
+        if r.get("status") == "late":
+            return "متأخر"
+        if int(r.get("lateExcused") or 0) > 0:
+            return "تأخير معوَّض"
+        return "حاضر"
     for e in emps:
         for r in rows_by_emp.get(e["id"], []):
             ot = overtime_min(r, e, settings)
@@ -339,7 +350,7 @@ def monthly_report(month: str = Query(default=None, description="YYYY-MM")):
                 time_ar(r.get("checkIn")), time_ar(r.get("checkOut")),
                 min_to_hours(r.get("workedMin")) if r.get("checkOut") else "—",
                 min_to_hours(ot) if ot else "—",
-                status_ar.get(r.get("status"), "—"),
+                st_of(r),
                 r.get("note") or "",
             ])
     style_body(det)

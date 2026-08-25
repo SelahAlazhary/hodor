@@ -100,13 +100,14 @@ export function clockStr(d = now()) {
   const c = clockParts(d);
   return `${c.t} ${c.ap}`;
 }
-/** عرض الوقت بنظام 24 ساعة بتوقيت القاهرة — مثل 17:05 */
+/** عرض الوقت بنظام 12 ساعة بتوقيت القاهرة — مثل 05:05 م */
 export function timeAr(v) {
   if (!v) return "—";
   const raw = v instanceof Date ? v : new Date(v);
   if (isNaN(raw)) return "—";
   const d = zoned(raw);
-  return `${p2(d.getHours())}:${p2(d.getMinutes())}`;
+  const h24 = d.getHours();
+  return `${p2(h24 % 12 || 12)}:${p2(d.getMinutes())} ${h24 < 12 ? "ص" : "م"}`;
 }
 export function dateAr(dk) {
   const d = new Date(dk + "T00:00:00");

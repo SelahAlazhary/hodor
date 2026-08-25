@@ -6,6 +6,7 @@ import {
 } from "./utils.js";
 import {
   watchDay, getMonth, summarize, markAbsent, clearRecord, editTimes, overtimeOf, requiredMinOf,
+  compensateLate,
   addEmployee, updateEmployee, removeEmployee, setRecord, releaseDevice,
   saveSettings, watchEvents, clearEvents, watchDevices, addNetwork, removeNetwork, logEvent,
   removeDeviceEntry
@@ -222,7 +223,10 @@ async function todayAction(act, empId) {
     if (!rec || !rec.checkIn) { toast("لا يوجد تسجيل حضور في هذا اليوم", "err"); return; }
     const ms = isToday ? nowMs() : msFromCairo(curDate, emp.workEnd || st.workEnd || "17:00");
     const workedMin = Math.max(0, Math.round((ms - toDate(rec.checkIn).getTime()) / 60000));
-    await setRecord(curDate, empId, { checkOut: new Date(ms).toISOString(), workedMin, completed: true });
+    const req = requiredMinOf(rec, st, emp);
+    const comp = compensateLate(rec, workedMin, req);
+    await setRecord(curDate, empId, { checkOut: new Date(ms).toISOString(), ...comp });
+    if (comp.lateExcused > 0) toast(`عُوِّض تأخير ${emp.name} بالوقت الإضافي`, "ok");
     logEvent({ type: "out", empId, empName: emp.name, date: curDate, at: new Date(ms).toISOString(), workedMin });
     toast(`تم تسجيل انصراف ${emp.name} — ${minToHuman(workedMin)}`, "ok");
     return;

@@ -305,6 +305,28 @@ export async function checkIn(emp, settings, source = "self") {
   return { ok: true, record: rec };
 }
 
+/** ═══ تعويض التأخير بالوقت الإضافي ═══
+ *  إذا عمل الموظف وقتاً إضافياً بعد نهاية دوامه فإنه يكون قد عوّض تأخيره،
+ *  فيُسجَّل أنه **لم يتأخر** ويُحتسب له الفائض وقتاً إضافياً.
+ *  مثال: دوامه 9→5، حضر 10 (متأخر ساعة) وانصرف 7 مساءً
+ *        ⇒ عمل 9 ساعات بدل 8 ⇒ لا تأخير + ساعة إضافية.       */
+export function compensateLate(rec, workedMin, requiredMin) {
+  const overtimeMin = Math.max(0, workedMin - requiredMin);
+  const lateMin = Math.max(0, Number(rec?.lateMin || 0));
+  const patch = { workedMin, requiredMin, overtimeMin, completed: true };
+
+  if (lateMin > 0 && overtimeMin > 0) {
+    patch.status = "present";       // عُوِّض التأخير بالكامل
+    patch.lateMin = 0;
+    patch.lateExcused = lateMin;    // نحتفظ بالرقم للشفافية في التقارير
+  } else {
+    patch.status = rec?.status === "late" ? "late" : "present";
+    patch.lateMin = lateMin;
+    patch.lateExcused = 0;
+  }
+  return patch;
+}
+
 /** تسجيل انصراف — يحسب ساعات اليوم تلقائياً */
 export async function checkOut(emp, settings) {
   const inst = instant(), dk = dateKey(now());
@@ -315,10 +337,9 @@ export async function checkOut(emp, settings) {
   const workedMin = Math.max(0, Math.round((nowMs() - toDate(exist.checkIn).getTime()) / 60000));
   const requiredMin = requiredMinOf(exist, settings, emp);
   const patch = {
-    checkOut: inst.toISOString(), workedMin, requiredMin,
-    overtimeMin: Math.max(0, workedMin - requiredMin),
-    status: exist.status === "late" ? "late" : "present",
-    completed: true, updatedAt: nowMs()
+    checkOut: inst.toISOString(),
+    ...compensateLate(exist, workedMin, requiredMin),
+    updatedAt: nowMs()
   };
   enqueue(attPath(dk, emp.id), patch);
   logEvent({ type: "out", empId: emp.id, empName: emp.name, date: dk, at: inst.toISOString(), workedMin });
