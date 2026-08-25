@@ -9,7 +9,7 @@ import {
   compensateLate,
   addEmployee, updateEmployee, removeEmployee, setRecord, releaseDevice,
   saveSettings, watchEvents, clearEvents, watchDevices, addNetwork, removeNetwork, logEvent,
-  removeDeviceEntry, createBindToken, sendNotice, watchNotices, removeNotice
+  removeDeviceEntry, createBindToken, sendNotice, watchNotices, removeNotice, releasePcDevice
 } from "./store.js";
 import { notify, askPermission, notifState, buzz } from "./notify.js";
 import { statusTag } from "./employee.js";
@@ -350,12 +350,14 @@ function paintEmployees() {
       <td>${esc(e.phone || "—")}</td>
       <td>${e.workStart ? timeLabelAr(e.workStart) : "—"} <span class="sub">←</span> ${e.workEnd ? timeLabelAr(e.workEnd) : "—"}</td>
       <td>${e.boundDevice
-        ? `<span class="tag t-present">مرتبط</span><br><span class="sub">${relAr(e.boundAt)}</span>`
-        : '<span class="tag t-off">غير مرتبط</span>'}</td>
+        ? `<span class="tag t-present">هاتف</span>`
+        : '<span class="tag t-off">بلا هاتف</span>'}
+        ${e.pcDevice ? '<br><span class="tag t-out">كمبيوتر</span>' : ""}</td>
       <td>${e.active === false ? '<span class="tag t-absent">موقوف</span>' : '<span class="tag t-present">نشط</span>'}</td>
       <td>
         <button class="mini" data-e="qr" data-id="${e.id}"><svg class="ico"><use href="#i-mobile"/></svg> ربط بـQR</button>
         ${e.boundDevice ? `<button class="mini ok" data-e="free" data-id="${e.id}"><svg class="ico"><use href="#i-mobile"/></svg> هاتف جديد</button>` : ""}
+        ${e.pcDevice ? `<button class="mini warn" data-e="unpc" data-id="${e.id}"><svg class="ico"><use href="#i-monitor"/></svg> فصل الكمبيوتر</button>` : ""}
         <button class="mini" data-e="edit" data-id="${e.id}"><svg class="ico"><use href="#i-edit"/></svg> تعديل</button>
         <button class="mini danger" data-e="del" data-id="${e.id}"><svg class="ico"><use href="#i-trash"/></svg> حذف</button>
       </td>
@@ -373,6 +375,12 @@ function paintEmployees() {
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
     if (b.dataset.e === "qr") { await openQr(emp); return; }
+    if (b.dataset.e === "unpc") {
+      if (!confirm(`فصل جهاز الكمبيوتر عن حساب ${emp.name}؟`)) return;
+      await releasePcDevice(emp.id);
+      toast("تم فصل الكمبيوتر", "ok");
+      return;
+    }
     if (b.dataset.e === "free") {
       if (!confirm(`السماح لـ ${emp.name} بتسجيل الدخول من هاتف جديد؟\n` +
                    `سيُفصل حسابه عن الهاتف الحالي، وأول هاتف يدخل منه سيصبح هاتفه المعتمد.`)) return;
@@ -573,19 +581,19 @@ function onEvents(list) {
   for (const ev of list) {
     if (seenEvents.has(ev.id)) continue;
     seenEvents.add(ev.id); newCount++;
-    if (ev.type === "in") notify("🟢 حضور جديد", `${ev.empName} سجّل حضوره الساعة ${timeAr(ev.at)}${ev.status === "late" ? " (متأخر)" : ""}`, { tag: "adm-" + ev.id });
-    if (ev.type === "out") notify("🔴 انصراف", `${ev.empName} انصرف الساعة ${timeAr(ev.at)} — ${minToHuman(ev.workedMin)}`, { tag: "adm-" + ev.id });
-    if (ev.type === "abs") notify("🚫 غياب", `${ev.empName} — ${dateAr(ev.date)}${ev.note ? "\n" + ev.note : ""}`, { tag: "adm-" + ev.id });
+    if (ev.type === "in") notify("🟢 حضور جديد", `${ev.empName} سجّل حضوره الساعة ${timeAr(ev.at)}${ev.status === "late" ? " (متأخر)" : ""}`, { tag: "adm-" + ev.id, sound: ev.type === "in" ? "in" : ev.type === "out" ? "out" : "warn" });
+    if (ev.type === "out") notify("🔴 انصراف", `${ev.empName} انصرف الساعة ${timeAr(ev.at)} — ${minToHuman(ev.workedMin)}`, { tag: "adm-" + ev.id, sound: ev.type === "in" ? "in" : ev.type === "out" ? "out" : "warn" });
+    if (ev.type === "abs") notify("🚫 غياب", `${ev.empName} — ${dateAr(ev.date)}${ev.note ? "\n" + ev.note : ""}`, { tag: "adm-" + ev.id, sound: ev.type === "in" ? "in" : ev.type === "out" ? "out" : "warn" });
     if (ev.type === "awaynet") notify("⏳ موظف خارج الشبكة",
       `${ev.empName} خارج شبكة الشركة منذ ${minToHuman(ev.awayMin)} وحضوره ما زال مفتوحاً.
 تحقّق من وجوده.`,
-      { tag: "adm-" + ev.id, sticky: true });
+      { tag: "adm-" + ev.id, sticky: true, sound: "warn" });
     if (ev.type === "leftnet") notify(
       ev.afterShift ? "🔔 غادر بعد انتهاء دوامه" : "⚠️ غادر قبل انتهاء دوامه",
       `${ev.empName} غادر شبكة الشركة الساعة ${timeAr(ev.at)} ولم يسجّل انصرافه` +
       (ev.afterShift ? " — بعد انتهاء دوامه" : " — قبل انتهاء دوامه") +
       (ev.checkIn ? `\nحضوره مسجَّل منذ ${timeAr(ev.checkIn)}` : ""),
-      { tag: "adm-" + ev.id, sticky: true });
+      { tag: "adm-" + ev.id, sticky: true, sound: "warn" });
   }
   if (newCount) {
     buzz();
@@ -742,7 +750,7 @@ function bindSettings() {
   };
   $("#admTestNotif").onclick = async () => {
     if (!await askPermission()) return;
-    notify("🔔 إشعار تجريبي", "إشعارات نظام الحضور تعمل بنجاح — Spot Light", { tag: "test" });
+    notify("🔔 إشعار تجريبي", "إشعارات نظام الحضور تعمل بنجاح — Spot Light", { tag: "test", sound: "ok" });
   };
 }
 

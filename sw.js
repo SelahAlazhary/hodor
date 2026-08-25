@@ -1,11 +1,11 @@
 /* ===== Service Worker — تشغيل بدون إنترنت + الإشعارات ===== */
-const VERSION = "spotlight-v9";
+const VERSION = "spotlight-v10";
 const CFG_CACHE = "azhari-config";   // كاش دائم لإعدادات الحضور التلقائي
 const SHELL = [
   "./", "./index.html", "./manifest.webmanifest",
   "./css/app.css",
   "./js/app.js", "./js/utils.js", "./js/store.js",
-  "./js/firebase.js", "./js/notify.js", "./js/employee.js", "./js/admin.js",
+  "./js/firebase.js", "./js/notify.js", "./js/employee.js", "./js/admin.js", "./js/sound.js",
   "./icons/icon-192-sl.png", "./icons/icon-512-sl.png"
 ];
 
@@ -85,7 +85,7 @@ self.addEventListener("push", e => {
   try { d = { ...d, ...e.data.json() }; } catch { if (e.data) d.body = e.data.text(); }
   e.waitUntil(self.registration.showNotification(d.title, {
     body: d.body, icon: "./icons/icon-192-sl.png", badge: "./icons/icon-192-sl.png",
-    dir: "rtl", lang: "ar", vibrate: [120, 60, 120]
+    dir: "rtl", lang: "ar", silent: false, vibrate: [120, 60, 120]
   }));
 });
 
@@ -203,7 +203,7 @@ async function leftNetwork() {
         ? `${cfg.empName}\nانتهى دوامك الساعة ${endStr} وغادرت المقر دون تسجيل انصراف.\nسجّل انصرافك ليُحتسب وقتك ووقتك الإضافي بدقة.`
         : `${cfg.empName}\nخرجت من شبكة الشركة قبل انتهاء دوامك ولم تسجّل انصرافك.`,
       icon: "./icons/icon-192-sl.png", badge: "./icons/icon-192-sl.png",
-      dir: "rtl", lang: "ar", tag: "left-net", requireInteraction: true,
+      dir: "rtl", lang: "ar", silent: false, tag: "left-net", requireInteraction: true,
       vibrate: [200, 90, 200]
     });
   } catch (e) { /* تجاهل */ }
@@ -245,7 +245,7 @@ async function checkoutDue() {
     await self.registration.showNotification("🔔 حان وقت الانصراف", {
       body: `${cfg.empName}\nانتهى دوامك الساعة ${endStr}${extra}\nسجّل انصرافك الآن ليُحتسب وقتك بدقة.`,
       icon: "./icons/icon-192-sl.png", badge: "./icons/icon-192-sl.png",
-      dir: "rtl", lang: "ar", tag: "checkout-due", requireInteraction: true,
+      dir: "rtl", lang: "ar", silent: false, tag: "checkout-due", requireInteraction: true,
       vibrate: [160, 80, 160]
     });
   } catch (e) { /* تجاهل */ }
@@ -299,7 +299,7 @@ async function autoCheckin() {
 عند اتصالك بشبكة الشركة
 وقت الحضور: ${p2(h)}:${mm} ${ap}`,
       icon: "./icons/icon-192-sl.png", badge: "./icons/icon-192-sl.png",
-      dir: "rtl", lang: "ar", tag: "auto-in", vibrate: [120, 60, 120]
+      dir: "rtl", lang: "ar", silent: false, tag: "auto-in", vibrate: [120, 60, 120]
     });
   } catch (e) { /* نتجاهل الأخطاء في الخلفية */ }
 }

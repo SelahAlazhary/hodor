@@ -115,6 +115,22 @@
         <button class="tab" data-tab="adm"><svg class="ico"><use href="#i-lock"/></svg> مدير</button>
       </div>
 
+      <div id="pcLoginPane" class="tabpane" hidden>
+        <p class="pc-login-lead">
+          سجّل دخولك على الكمبيوتر بمسح هذا الرمز من <b>هاتفك</b> —
+          وسيعمل حسابك على الجهازين معاً.
+        </p>
+        <div class="qr-frame pc-qr"><img id="pcQrImg" alt="رمز الدخول" /></div>
+        <div id="pcQrState" class="pill pill-idle">بانتظار المسح من هاتفك…</div>
+        <div class="pc-login-steps">
+          <span>1) افتح كاميرا هاتفك</span>
+          <span>2) امسح الرمز</span>
+          <span>3) اضغط «موافقة» على هاتفك</span>
+        </div>
+        <button type="button" id="pcQrRefresh" class="btn btn-ghost btn-xs">تحديث الرمز</button>
+        <button type="button" id="pcUseForm" class="btn btn-ghost btn-xs">الدخول بالاسم ورقم الهاتف بدلاً من ذلك</button>
+      </div>
+
       <form id="empLoginForm" class="tabpane active" autocomplete="off">
         <label class="field">
           <span>الاسم</span>
@@ -392,13 +408,29 @@
 
     <div class="card" id="autoStartCard" hidden>
       <div class="card-head"><h3><svg class="ico ico-head"><use href="#i-refresh"/></svg> تشغيل التطبيق تلقائياً مع الكمبيوتر</h3></div>
-      <ol class="steps-ol">
-        <li>ثبّت التطبيق أولاً من زر <b>تثبيت</b> بالأعلى.</li>
-        <li>افتح في المتصفح: <code>chrome://apps</code> (أو <code>edge://apps</code>).</li>
-        <li>اضغط بالزر الأيمن على أيقونة <b>Spot Light</b>.</li>
-        <li>فعّل <b>«Start app when you sign in»</b> أو <b>«تشغيل عند تسجيل الدخول»</b>.</li>
-      </ol>
-      <p class="hint">بعدها يفتح التطبيق نفسه تلقائياً بعد كل إعادة تشغيل للجهاز.</p>
+      <p class="hint">اختر الطريقة الأسهل لك — بعدها يفتح التطبيق نفسه بعد كل إعادة تشغيل.</p>
+
+      <div class="auto-way">
+        <b>الطريقة الأولى — ملف جاهز (الأسرع)</b>
+        <p>نزّل الملف ثم افتحه بنقرة مزدوجة مرة واحدة فقط.</p>
+        <div class="row-gap wrap">
+          <button id="dlAutoStart" class="btn btn-primary btn-xs">
+            <svg class="ico"><use href="#i-download"/></svg> تنزيل ملف التشغيل التلقائي
+          </button>
+          <button id="showAutoCmd" class="btn btn-ghost btn-xs">عرض محتوى الملف</button>
+        </div>
+        <pre id="autoCmdBox" class="cmd-box" hidden></pre>
+      </div>
+
+      <div class="auto-way">
+        <b>الطريقة الثانية — من إعدادات المتصفح</b>
+        <ol class="steps-ol">
+          <li>ثبّت التطبيق أولاً من زر <b>تثبيت</b> بالأعلى.</li>
+          <li>افتح في المتصفح: <code>chrome://apps</code> (أو <code>edge://apps</code>).</li>
+          <li>اضغط بالزر الأيمن على أيقونة <b>Spot Light</b>.</li>
+          <li>فعّل <b>«Start app when you sign in»</b> أو <b>«تشغيل عند تسجيل الدخول»</b>.</li>
+        </ol>
+      </div>
     </div>
 
     <div class="card">
@@ -824,6 +856,23 @@
     </div>
   </main>
 </section>
+
+<div id="pcApproveModal" class="modal" hidden>
+  <div class="modal-card">
+    <div class="modal-head">
+      <h3><svg class="ico ico-head"><use href="#i-monitor"/></svg> ربط جهاز كمبيوتر</h3>
+      <button id="pcApproveClose" class="icon-btn"><svg class="ico"><use href="#i-close"/></svg></button>
+    </div>
+    <p class="qr-hint" id="pcApproveText">
+      هل تريد ربط جهاز الكمبيوتر بحسابك؟ سيعمل حسابك على الهاتف والكمبيوتر معاً.
+    </p>
+    <div class="ef-actions">
+      <button id="pcApproveYes" class="btn btn-primary"><svg class="ico"><use href="#i-check"/></svg> موافقة وربط الكمبيوتر</button>
+      <button id="pcApproveNo" class="btn btn-ghost">رفض</button>
+    </div>
+    <div id="pcApproveMsg" class="alert" hidden></div>
+  </div>
+</div>
 
 <div id="qrModal" class="modal" hidden>
   <div class="modal-card qr-card">

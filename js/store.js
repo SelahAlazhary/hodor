@@ -203,6 +203,51 @@ export async function consumeBindToken(token) {
   }
 }
 
+/* ═══ ربط الكمبيوتر بمسح رمز من هاتف الموظف ═══
+   يُخزَّن الطلب داخل سجل الجهاز نفسه، فيراه الهاتف عند مسح الرمز ويوافق عليه. */
+const PC_TTL = 10 * 60 * 1000;
+
+/** (الكمبيوتر) ينشئ طلب ربط ويعيد الرمز */
+export async function createPcRequest(pcId = deviceId()) {
+  const code = Math.random().toString(36).slice(2, 8).toUpperCase();
+  await update(ref(db, `${PATH.devices}/${pcId}`), {
+    name: "كمبيوتر", lastSeen: nowMs(),
+    pcLink: { code, status: "pending", at: nowMs(), exp: nowMs() + PC_TTL }
+  });
+  return code;
+}
+
+/** (الكمبيوتر) يراقب الموافقة */
+export function watchPcRequest(pcId, cb) {
+  return onValue(ref(db, `${PATH.devices}/${pcId}/pcLink`), s => cb(s.val() || null),
+    e => console.warn("watchPcRequest", e.message));
+}
+
+/** (الهاتف) يوافق على ربط الكمبيوتر بحساب الموظف */
+export async function approvePcRequest(pcId, code, emp) {
+  const snap = await get(ref(db, `${PATH.devices}/${pcId}/pcLink`));
+  const link = snap.val();
+  if (!link) return { ok: false, error: "طلب الربط غير موجود — أعد فتح الصفحة على الكمبيوتر" };
+  if (String(link.code) !== String(code)) return { ok: false, error: "رمز غير مطابق" };
+  if (link.exp && nowMs() > Number(link.exp)) return { ok: false, error: "انتهت صلاحية الرمز — حدّث الصفحة على الكمبيوتر" };
+
+  await update(ref(db, `${PATH.devices}/${pcId}/pcLink`), {
+    status: "approved", empId: emp.id, empName: emp.name, approvedAt: nowMs()
+  });
+  await update(ref(db, `${PATH.employees}/${emp.id}`), { pcDevice: pcId, pcLinkedAt: nowMs() });
+  return { ok: true };
+}
+
+/** (الكمبيوتر) ينهي الطلب بعد الدخول */
+export async function clearPcRequest(pcId = deviceId()) {
+  try { await remove(ref(db, `${PATH.devices}/${pcId}/pcLink`)); } catch {}
+}
+
+/** فصل الكمبيوتر عن حساب الموظف */
+export async function releasePcDevice(empId) {
+  enqueue(`${PATH.employees}/${empId}`, { pcDevice: null, pcLinkedAt: null });
+}
+
 /* ================= الموظفون ================= */
 const empList = obj => entries(obj).map(([id, v]) => ({ id, ...v }))
   .sort((a, b) => String(a.name).localeCompare(String(b.name), "ar"));

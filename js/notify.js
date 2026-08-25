@@ -1,5 +1,6 @@
 /* ===== الإشعارات على الهاتف ===== */
 import { toast } from "./utils.js";
+import { playAlert } from "./sound.js";
 
 const ICON = "./icons/icon-192-sl.png";
 
@@ -24,6 +25,7 @@ export async function askPermission(silent = false) {
 
 /** إشعار على الهاتف (عبر Service Worker حتى يظهر في شريط الإشعارات) */
 export async function notify(title, body, opts = {}) {
+  playAlert(opts.sound || "notice");        // صوت مسموع دائماً حتى لو مُنع الإشعار
   try {
     if (!notifSupported() || Notification.permission !== "granted") return false;
     const options = {
@@ -32,8 +34,9 @@ export async function notify(title, body, opts = {}) {
       badge: ICON,
       dir: "rtl",
       lang: "ar",
-      tag: opts.tag || "azhari",
+      tag: opts.tag || "spotlight",
       renotify: true,
+      silent: false,                        // يشغّل صوت النظام مع الإشعار
       requireInteraction: !!opts.sticky,
       vibrate: opts.vibrate || [120, 60, 120],
       data: opts.data || {}

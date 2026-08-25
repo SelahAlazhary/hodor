@@ -2,6 +2,7 @@
 import { $, $$, LS, toast, esc, normName, deviceId, initials } from "./utils.js";
 import { getSettings, watchSettings, watchEmployees, findEmployee, registerDevice,
          bindDevice, consumeBindToken, watchConnection, watchServerClock,
+         createPcRequest, watchPcRequest, approvePcRequest, clearPcRequest,
          flush, pendingCount } from "./store.js";
 import { askPermission } from "./notify.js";
 import { verifyAdmin } from "./auth.js";
@@ -198,7 +199,7 @@ $("#empLoginForm").addEventListener("submit", async e => {
   if (!isKiosk) {
     if (!emp.boundDevice) {
       await bindDevice(emp.id, dev);          // أول جهاز يستخدمه الموظف
-    } else if (emp.boundDevice !== dev) {
+    } else if (emp.boundDevice !== dev && emp.pcDevice !== dev) {
       loginError("هذا الحساب مسجَّل على هاتف آخر. لاستخدام هاتف جديد اطلب من الإدارة تحرير الجهاز.");
       return;
     }
@@ -282,6 +283,77 @@ export function startSession() {
   }
 }
 
+/* ---------- دخول الكمبيوتر بمسح رمز من الهاتف ---------- */
+const isPC = () => !/Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+let unsubPc = null;
+
+/** يعرض رمز الدخول على الكمبيوتر وينتظر موافقة الهاتف */
+async function startPcLogin() {
+  if (!isPC()) return;
+  $("#pcLoginPane").hidden = false;
+  $("#empLoginForm").classList.remove("active");
+  const img = $("#pcQrImg"), st = $("#pcQrState");
+  st.className = "pill pill-idle"; st.textContent = "جارٍ تجهيز الرمز…";
+  img.removeAttribute("src");
+  try {
+    const pcId = deviceId();
+    const code = await createPcRequest(pcId);
+    const link = `${location.origin}${location.pathname}?pc=${pcId}.${code}`;
+    img.src = `/api/qr?text=${encodeURIComponent(link)}&scale=6`;
+    st.textContent = "بانتظار المسح من هاتفك…";
+
+    unsubPc?.();
+    unsubPc = watchPcRequest(pcId, async l => {
+      if (!l || l.status !== "approved" || !l.empId) return;
+      const emp = state.employees.find(e => e.id === l.empId);
+      if (!emp) return;
+      unsubPc?.(); unsubPc = null;
+      await clearPcRequest(pcId);
+      st.className = "pill pill-in"; st.textContent = `تم الربط — أهلاً ${emp.name}`;
+      state.session = { role: "employee", empId: emp.id, name: emp.name };
+      LS.set("az_session", state.session);
+      await askPermission(true);
+      setTimeout(startSession, 600);
+    });
+  } catch (e) {
+    st.className = "pill pill-abs";
+    st.textContent = "تعذّر تجهيز الرمز — تأكد من الاتصال بالإنترنت";
+  }
+}
+
+$("#pcQrRefresh")?.addEventListener("click", startPcLogin);
+$("#pcUseForm")?.addEventListener("click", () => {
+  $("#pcLoginPane").hidden = true;
+  $("#empLoginForm").classList.add("active");
+  unsubPc?.(); unsubPc = null;
+});
+
+/** على الهاتف: تأكيد ربط الكمبيوتر بعد مسح الرمز */
+function askPcApproval(pcId, code) {
+  const modal = $("#pcApproveModal");
+  const msg = $("#pcApproveMsg");
+  const emp = state.employees.find(e => e.id === state.session?.empId);
+  modal.hidden = false;
+  if (!emp) {
+    $("#pcApproveText").textContent = "سجّل دخولك على هذا الهاتف أولاً ثم أعد مسح الرمز.";
+    $("#pcApproveYes").hidden = true;
+    return;
+  }
+  $("#pcApproveText").textContent =
+    `هل تريد ربط جهاز الكمبيوتر بحساب ${emp.name}؟ سيعمل حسابك على الهاتف والكمبيوتر معاً.`;
+  $("#pcApproveYes").onclick = async () => {
+    $("#pcApproveYes").disabled = true;
+    const r = await approvePcRequest(pcId, code, emp);
+    $("#pcApproveYes").disabled = false;
+    if (!r.ok) { msg.textContent = r.error; msg.className = "alert error"; msg.hidden = false; return; }
+    msg.textContent = "تم ربط الكمبيوتر ✅ افتح الشاشة عليه الآن";
+    msg.className = "alert ok"; msg.hidden = false;
+    toast("تم ربط جهاز الكمبيوتر بحسابك ✅", "ok");
+    setTimeout(() => { modal.hidden = true; msg.hidden = true; }, 2500);
+  };
+  $("#pcApproveNo").onclick = $("#pcApproveClose").onclick = () => { modal.hidden = true; };
+}
+
 /* ---------- ربط الجهاز عبر رمز QR ---------- */
 async function handleBindLink(token) {
   const r = await consumeBindToken(token);
@@ -322,8 +394,10 @@ async function handleBindLink(token) {
   });
   getSettings().then(s => { if (!state.settings) state.settings = s; }).catch(() => {});
 
-  const bindToken = new URLSearchParams(location.search).get("bind");
-  if (bindToken) history.replaceState({}, "", location.pathname);
+  const qs = new URLSearchParams(location.search);
+  const bindToken = qs.get("bind");
+  const pcParam = qs.get("pc");
+  if (bindToken || pcParam) history.replaceState({}, "", location.pathname);
 
   // الموظفون (مباشر)
   watchEmployees(list => {
@@ -350,6 +424,12 @@ async function handleBindLink(token) {
     clearTimeout(fallback);
     if (bindToken && !started) { started = true; hideBoot(); handleBindLink(bindToken); return; }
     showUI();
+    if (pcParam) {
+      const [pcId, code] = String(pcParam).split(".");
+      if (pcId && code) askPcApproval(pcId, code);
+    } else if (isPC() && !state.session) {
+      startPcLogin();                          // الكمبيوتر يعرض رمز الدخول مباشرة
+    }
   });
 })();
 

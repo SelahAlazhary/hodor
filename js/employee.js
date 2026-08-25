@@ -44,6 +44,7 @@ export function initEmployee(state, emp) {
   startClock();
   bindActions();
   bindPinForm();
+  bindAutoStart();
   watchMyNotices();
   bindPcConfirm();
   paintPinState();
@@ -259,7 +260,7 @@ function bindActions() {
     toast(`تم تسجيل حضور ${t.name} الساعة ${tm} ✅`, "ok");
     notify("✅ تم تسجيل الحضور",
       `${t.name}\nوقت الحضور: ${tm}\n${r.record.status === "late" ? "⚠ تأخير " + r.record.lateMin + " دقيقة" : "في الموعد المحدد"}`,
-      { tag: "att-in" });
+      { tag: "att-in", sound: "in" });
     loadHistory();
   };
 
@@ -279,7 +280,7 @@ function bindActions() {
       : `تم تسجيل الانصراف — ${minToHuman(r.record.workedMin)} ✅`, "ok");
     notify("🔴 تم تسجيل الانصراف",
       `${t.name}\nساعة الحضور: ${i}\nساعة الانصراف: ${o}\nإجمالي اليوم: ${minToHuman(r.record.workedMin)}${otLine}${excLine}`,
-      { tag: "att-out", sticky: true });
+      { tag: "att-out", sticky: true, sound: "out" });
     loadHistory();
   };
 
@@ -290,7 +291,7 @@ function bindActions() {
     await markAbsent(t, dateKey(), note || "", kioskTarget ? "kiosk" : "employee");
     buzz();
     toast("تم تسجيل الغياب وإبلاغ الإدارة", "ok");
-    notify("🚫 تم تسجيل غياب", `${t.name}\nاليوم: ${dateAr(dateKey())}${note ? "\nالسبب: " + note : ""}`, { tag: "att-abs" });
+    notify("🚫 تم تسجيل غياب", `${t.name}\nاليوم: ${dateAr(dateKey())}${note ? "\nالسبب: " + note : ""}`, { tag: "att-abs", sound: "warn" });
     loadHistory();
   };
 
@@ -370,7 +371,7 @@ function watchMyNotices() {
     if (!primed) { primed = true; return; }
     fresh.slice(0, 3).forEach(n => {
       buzz();
-      notify("📢 " + n.title, n.body, { tag: "notice-" + n.id, sticky: true });
+      notify("📢 " + n.title, n.body, { tag: "notice-" + n.id, sticky: true, sound: "notice" });
       toast("📢 " + n.title, "ok");
     });
   });
@@ -399,12 +400,73 @@ function bindPinForm() {
   };
 }
 
+/** ملف ويندوز ينشئ اختصاراً في مجلد بدء التشغيل ليفتح التطبيق بعد كل إقلاع */
+function autoStartScript() {
+  const url = location.origin + location.pathname;
+  const raw = String.raw`@echo off
+chcp 65001 >nul
+title Spot Light - تشغيل تلقائي
+set "URL=${url}"
+
+rem  البحث عن متصفح مثبَّت
+set "BR=%ProgramFiles%\Google\Chrome\Application\chrome.exe"
+if not exist "%BR%" set "BR=%ProgramFiles(x86)%\Google\Chrome\Application\chrome.exe"
+if not exist "%BR%" set "BR=%LocalAppData%\Google\Chrome\Application\chrome.exe"
+if not exist "%BR%" set "BR=%ProgramFiles(x86)%\Microsoft\Edge\Application\msedge.exe"
+if not exist "%BR%" set "BR=%ProgramFiles%\Microsoft\Edge\Application\msedge.exe"
+if not exist "%BR%" (
+  echo لم يُعثر على متصفح Chrome أو Edge
+  pause
+  exit /b
+)
+
+rem  إنشاء اختصار في مجلد بدء التشغيل
+set "VBS=%TEMP%\spotlight_autostart.vbs"
+> "%VBS%" echo Set W = CreateObject("WScript.Shell")
+>>"%VBS%" echo Set S = W.CreateShortcut(W.SpecialFolders("Startup") ^& "\Spot Light.lnk")
+>>"%VBS%" echo S.TargetPath = "%BR%"
+>>"%VBS%" echo S.Arguments = "--app=%URL%"
+>>"%VBS%" echo S.Description = "Spot Light - نظام الحضور"
+>>"%VBS%" echo S.Save
+cscript //nologo "%VBS%"
+del "%VBS%"
+
+echo.
+echo تم تفعيل التشغيل التلقائي بنجاح.
+echo سيفتح التطبيق تلقائياً بعد كل إعادة تشغيل للجهاز.
+echo.
+pause
+`;
+  return raw.split("\n").join("\r\n");
+}
+
+function bindAutoStart() {
+  const dl = $("#dlAutoStart"), show = $("#showAutoCmd"), box = $("#autoCmdBox");
+  if (!dl) return;
+  dl.onclick = () => {
+    const blob = new Blob(["﻿" + autoStartScript()], { type: "application/octet-stream" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "SpotLight-AutoStart.bat";
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+    toast("نزّل الملف ثم افتحه بنقرة مزدوجة مرة واحدة", "ok");
+  };
+  show.onclick = () => {
+    box.textContent = autoStartScript();
+    box.hidden = !box.hidden;
+    show.textContent = box.hidden ? "عرض محتوى الملف" : "إخفاء المحتوى";
+  };
+}
+
 function paintPinState() {
   const tag = $("#pinState"); if (!tag) return;
   const has = !!EMP?.pinHash;
   tag.className = "tag " + (has ? "t-present" : "t-off");
   tag.textContent = has ? "مُعيَّنة" : "غير مُعيَّنة";
   const wrap = $("#oldPinWrap"); if (wrap) wrap.hidden = !has;
+  // كلمة مرور الحضور والتشغيل التلقائي يخصّان الكمبيوتر فقط
+  const pinCard = $("#empPinCard"); if (pinCard) pinCard.hidden = !isDesktop();
   const auto = $("#autoStartCard"); if (auto) auto.hidden = !isDesktop();
 }
 
@@ -452,7 +514,7 @@ function bindPcConfirm() {
     buzz();
     toast(`تم تسجيل حضورك ${timeAr(r.record.checkIn)} ✅`, "ok");
     notify("✅ تم تأكيد الحضور", `${EMP.name}\nمن جهاز الكمبيوتر داخل الشركة\nالوقت: ${timeAr(r.record.checkIn)}`,
-      { tag: "att-in" });
+      { tag: "att-in", sound: "in" });
     loadHistory();
   };
 }
@@ -485,7 +547,7 @@ function checkoutReminder() {
   toast("انتهى وقت دوامك — سجّل انصرافك", "ok");
   notify("🔔 حان وقت الانصراف",
     `${EMP.name}\nانتهى دوامك الساعة ${endLabel}${extra}\nسجّل انصرافك الآن ليُحتسب وقتك بدقة.`,
-    { tag: "checkout-due", sticky: true });
+    { tag: "checkout-due", sticky: true, sound: "warn" });
 }
 
 /* ---------- الحضور التلقائي عبر شبكة الشركة ---------- */
@@ -545,7 +607,7 @@ async function checkNetworkExit() {
           `${EMP.name}
 مضى ${minToHuman(awayMin)} خارج الشبكة وحضورك ما زال مفتوحاً.
 سجّل انصرافك أو عُد إلى المقر.`,
-          { tag: "away-net", sticky: true });
+          { tag: "away-net", sticky: true, sound: "warn" });
       }
     }
   }
@@ -571,12 +633,12 @@ async function checkNetworkExit() {
     notify("🔔 غادرت بعد انتهاء دوامك",
       `${EMP.name}\nانتهى دوامك${endLabel ? " الساعة " + endLabel : ""} وغادرت المقر دون تسجيل انصراف.\n` +
       `حضورك مسجَّل منذ ${since} — سجّل انصرافك ليُحتسب وقتك ووقتك الإضافي بدقة.`,
-      { tag: "left-net", sticky: true });
+      { tag: "left-net", sticky: true, sound: "warn" });
   } else {
     toast("خرجت من شبكة الشركة قبل انتهاء دوامك", "err");
     notify("⚠️ خروج قبل انتهاء الدوام",
       `${EMP.name}\nخرجت من شبكة الشركة قبل انتهاء دوامك ولم تسجّل انصرافك.\nحضورك مسجَّل منذ ${since}.`,
-      { tag: "left-net", sticky: true });
+      { tag: "left-net", sticky: true, sound: "warn" });
   }
 
   logEvent({ type: "leftnet", empId: EMP.id, empName: EMP.name,
@@ -613,7 +675,7 @@ async function tryAutoCheckin() {
 وقت الحضور: ${tm}` +
       (r.record.status === "late" ? `
 ⚠ تأخير ${r.record.lateMin} دقيقة` : ""),
-      { tag: "auto-in", sticky: true });
+      { tag: "auto-in", sticky: true, sound: "in" });
     paintAutoBar("on", "تم تسجيل الحضور تلقائياً");
     loadHistory();
   } finally { autoBusy = false; }
