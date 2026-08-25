@@ -9,12 +9,76 @@ export const AR_MONTHS = ["يناير","فبراير","مارس","أبريل","�
 
 const p2 = n => String(n).padStart(2, "0");
 
+/* ---------- الساعة العالمية وتوقيت مصر ----------
+   • الوقت مأخوذ من خادم Firebase لا من ساعة الجهاز
+     فلا يمكن التلاعب بالحضور بتغيير ساعة الهاتف.
+   • كل العرض والحسابات بتوقيت القاهرة مهما كانت إعدادات المنطقة الزمنية
+     في هاتف الموظف أو حاسوب الإدارة. */
+export const TZ = "Africa/Cairo";
+
+let _offset = 0, _synced = false;
+try { _offset = Number(JSON.parse(localStorage.getItem("az_clock_offset") || "0")) || 0; } catch {}
+
+export function setClockOffset(ms) {
+  const v = Number(ms);
+  if (!isFinite(v)) return;
+  _offset = v; _synced = true;
+  try { localStorage.setItem("az_clock_offset", JSON.stringify(v)); } catch {}
+}
+export const clockOffset = () => _offset;
+export const clockSynced = () => _synced;
+
+/** اللحظة الحقيقية الآن (ميلي ثانية) — تُستخدم للتخزين وحساب المدد */
+export const nowMs = () => Date.now() + _offset;
+/** كائن التاريخ للحظة الحقيقية (للتخزين بصيغة ISO) */
+export const instant = () => new Date(nowMs());
+
+let _fmt;
+function tzParts(ms) {
+  _fmt = _fmt || new Intl.DateTimeFormat("en-US", {
+    timeZone: TZ, hour12: false,
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", second: "2-digit"
+  });
+  const o = {};
+  for (const part of _fmt.formatToParts(new Date(ms)))
+    if (part.type !== "literal") o[part.type] = Number(part.value);
+  if (o.hour === 24) o.hour = 0;
+  return o;
+}
+
+/** يحوّل لحظة إلى كائن تاريخ قيمُه (الساعة/اليوم) بتوقيت القاهرة */
+export function zoned(v) {
+  const ms = v instanceof Date ? v.getTime() : Number(v);
+  const t = tzParts(ms);
+  return new Date(t.year, t.month - 1, t.day, t.hour, t.minute, t.second);
+}
+
+/** الوقت الحالي بتوقيت القاهرة (للعرض واستخراج الساعة والتاريخ) */
+export const now = () => zoned(nowMs());
+
+/** يحوّل توقيت حائط القاهرة (YYYY-MM-DD + HH:MM) إلى لحظة حقيقية */
+export function msFromCairo(dateStr, hhmm = "00:00") {
+  const [Y, M, D] = String(dateStr).split("-").map(Number);
+  const [h, m] = String(hhmm).split(":").map(Number);
+  const target = Date.UTC(Y, M - 1, D, h || 0, m || 0);
+  let guess = target;
+  for (let i = 0; i < 3; i++) {
+    const t = tzParts(guess);
+    const asUTC = Date.UTC(t.year, t.month - 1, t.day, t.hour, t.minute);
+    const diff = target - asUTC;
+    if (!diff) break;
+    guess += diff;
+  }
+  return guess;
+}
+
 /** yyyy-mm-dd بالتوقيت المحلي */
-export function dateKey(d = new Date()) {
+export function dateKey(d = now()) {
   return `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}`;
 }
 /** yyyy-mm */
-export function monthKey(d = new Date()) {
+export function monthKey(d = now()) {
   return `${d.getFullYear()}-${p2(d.getMonth() + 1)}`;
 }
 export function monthRange(mk) {
@@ -23,14 +87,15 @@ export function monthRange(mk) {
   const last = new Date(y, m, 0).getDate();
   return { start, end: `${y}-${p2(m)}-${p2(last)}`, days: last, y, m };
 }
-export function clockStr(d = new Date()) {
+export function clockStr(d = now()) {
   return `${p2(d.getHours())}:${p2(d.getMinutes())}:${p2(d.getSeconds())}`;
 }
 /** 03:45 م */
 export function timeAr(v) {
   if (!v) return "—";
-  const d = v instanceof Date ? v : new Date(v);
-  if (isNaN(d)) return "—";
+  const raw = v instanceof Date ? v : new Date(v);
+  if (isNaN(raw)) return "—";
+  const d = zoned(raw);          // العرض دائماً بتوقيت القاهرة
   let h = d.getHours(); const m = p2(d.getMinutes());
   const s = h < 12 ? "ص" : "م";
   h = h % 12 || 12;
@@ -43,7 +108,7 @@ export function dateAr(dk) {
 export function dayAr(dk) {
   return AR_DAYS[new Date(dk + "T00:00:00").getDay()];
 }
-export function fullDateAr(d = new Date()) {
+export function fullDateAr(d = now()) {
   return `${AR_DAYS[d.getDay()]} ${d.getDate()} ${AR_MONTHS[d.getMonth()]} ${d.getFullYear()}`;
 }
 /** "HH:MM" → دقائق */
@@ -74,11 +139,11 @@ export function toDate(v) {
 }
 export function relAr(v) {
   const d = toDate(v); if (!d) return "";
-  const s = Math.floor((Date.now() - d.getTime()) / 1000);
+  const s = Math.floor((nowMs() - d.getTime()) / 1000);
   if (s < 60) return "الآن";
   if (s < 3600) return `منذ ${Math.floor(s / 60)} د`;
   if (s < 86400) return `منذ ${Math.floor(s / 3600)} س`;
-  return `${dateAr(dateKey(d))} • ${timeAr(d)}`;
+  return `${dateAr(dateKey(zoned(d)))} • ${timeAr(d)}`;
 }
 
 /* ---------- تخزين محلي ---------- */

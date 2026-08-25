@@ -1,7 +1,7 @@
 /* ===== واجهة الموظف ===== */
 import {
   $, $$, esc, toast, clockStr, fullDateAr, dateKey, monthKey, dateAr, dayAr,
-  timeAr, minToHuman, minToHours, toDate, deviceId, hhmmToMin, LS
+  timeAr, minToHuman, minToHours, toDate, deviceId, hhmmToMin, now, nowMs, clockSynced, clockOffset, LS
 } from "./utils.js";
 import { getPublicIP, ipMatches } from "./network.js";
 import { DB_URL } from "./firebase.js";
@@ -71,8 +71,8 @@ function paintGauge() {
   const dailyMin = Math.max(30, (Number(ST?.settings?.dailyHours) || 8) * 60);
   let worked = 0;
   if (today?.checkIn) {
-    const end = today.checkOut ? toDate(today.checkOut) : new Date();
-    worked = Math.max(0, (end - toDate(today.checkIn)) / 60000);
+    const endMs = today.checkOut ? toDate(today.checkOut).getTime() : nowMs();
+    worked = Math.max(0, (endMs - toDate(today.checkIn).getTime()) / 60000);
   }
   const p = Math.max(0, Math.min(1, worked / dailyMin));
   ring.style.strokeDashoffset = RING_TODAY * (1 - p);
@@ -84,6 +84,11 @@ function startClock() {
   const tick = () => {
     $("#bigClock").textContent = clockStr();
     $("#bigDate").textContent = fullDateAr();
+    const src = $("#clockSrc");
+    if (src) {
+      src.textContent = clockSynced() ? "بتوقيت الخادم العالمي" : "بتوقيت الجهاز";
+      src.className = "clock-src" + (clockSynced() ? " synced" : "");
+    }
     paintGauge();
   };
   tick();
@@ -277,7 +282,7 @@ async function tryAutoCheckin() {
   if (today && (today.checkIn || today.status === "absent")) { paintAutoBar("on", "تم تسجيل حضورك اليوم"); return; }
 
   const s = ST.settings;
-  const now = new Date(), cur = now.getHours() * 60 + now.getMinutes();
+  const t = now(), cur = t.getHours() * 60 + t.getMinutes();
   const from = hhmmToMin(s.autoWindowStart || "05:00"), to = hhmmToMin(s.autoWindowEnd || "23:59");
   if (cur < from || cur > to) { paintAutoBar("off", "خارج وقت الفحص التلقائي"); return; }
 
@@ -312,7 +317,8 @@ async function armBackgroundAuto() {
     if (!reg || !EMP) return;
     (reg.active || reg.waiting)?.postMessage({
       type: "az-auto-config",
-      config: { dbUrl: DB_URL, empId: EMP.id, empName: EMP.name, workStart: EMP.workStart || "" }
+      config: { dbUrl: DB_URL, empId: EMP.id, empName: EMP.name,
+                workStart: EMP.workStart || "", clockOffset: clockOffset() }
     });
     if ("periodicSync" in reg) {
       const st = await navigator.permissions?.query({ name: "periodic-background-sync" }).catch(() => null);

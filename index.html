@@ -142,12 +142,15 @@
           <div class="input-icon">
             <svg class="ico"><use href="#i-lock"/></svg>
             <input id="admPassInput" type="password" placeholder="••••••••" required />
+            <button type="button" class="pw-eye" data-pw="admPassInput" title="إظهار كلمة المرور">
+              <svg class="ico"><use href="#i-eye"/></svg>
+            </button>
           </div>
         </label>
         <button class="btn btn-dark btn-lg" type="submit">
           <svg class="ico"><use href="#i-grid"/></svg> دخول لوحة التحكم
         </button>
-        <p class="hint">كلمة المرور الافتراضية عند أول تشغيل: <b>azhari2026</b></p>
+        <p class="hint">كلمة المرور محفوظة مشفَّرة ولا يمكن لأحد قراءتها من قاعدة البيانات.</p>
       </form>
 
       <div id="loginError" class="alert error" hidden></div>
@@ -212,6 +215,7 @@
         <div class="gauge-mid">
           <div id="bigClock" class="big-clock">--:--:--</div>
           <div id="bigDate" class="big-date">—</div>
+          <div id="clockSrc" class="clock-src">بتوقيت الجهاز</div>
           <div id="todayPct" class="gauge-pct">0% من دوام اليوم</div>
         </div>
       </div>
@@ -453,7 +457,6 @@
           <label class="field"><span>نهاية الدوام الافتراضية</span><input id="sEnd" type="time" /></label>
           <label class="field"><span>سماح التأخير (دقيقة)</span><input id="sGrace" type="number" min="0" max="180" /></label>
           <label class="field"><span>ساعات العمل اليومية المطلوبة</span><input id="sDaily" type="number" min="1" max="24" step="0.5" /></label>
-          <label class="field"><span>كلمة مرور المدير</span><input id="sPass" type="text" /></label>
           <div class="form-actions"><button class="btn btn-primary" type="submit"><svg class="ico"><use href="#i-save"/></svg> حفظ الإعدادات</button></div>
         </form>
       </div>
@@ -483,6 +486,40 @@
           </table>
         </div>
         <div id="devEmpty" class="empty"><svg class="ico empty-ico"><use href="#i-mobile"/></svg> لا توجد أجهزة مسجّلة بعد — افتح النظام من جهاز الاستقبال ليظهر هنا.</div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h3><svg class="ico ico-head"><use href="#i-lock"/></svg> كلمة مرور المدير</h3></div>
+        <p class="hint">
+          كلمة المرور مخزَّنة <b>مشفَّرة</b> (SHA-256) في مسار محمي لا تسمح قواعد قاعدة البيانات بقراءته —
+          حتى من يفتح قاعدة البيانات لا يستطيع رؤيتها. لتغييرها أدخل الحالية ثم الجديدة.
+        </p>
+        <form id="passForm" class="form-grid" autocomplete="off">
+          <label class="field"><span>كلمة المرور الحالية</span>
+            <div class="input-icon">
+              <svg class="ico"><use href="#i-lock"/></svg>
+              <input id="curPass" type="password" placeholder="••••••••" required />
+              <button type="button" class="pw-eye" data-pw="curPass"><svg class="ico"><use href="#i-eye"/></svg></button>
+            </div>
+          </label>
+          <label class="field"><span>كلمة المرور الجديدة</span>
+            <div class="input-icon">
+              <svg class="ico"><use href="#i-lock"/></svg>
+              <input id="newPass" type="password" placeholder="4 أحرف على الأقل" required />
+              <button type="button" class="pw-eye" data-pw="newPass"><svg class="ico"><use href="#i-eye"/></svg></button>
+            </div>
+          </label>
+          <label class="field"><span>تأكيد كلمة المرور الجديدة</span>
+            <div class="input-icon">
+              <svg class="ico"><use href="#i-lock"/></svg>
+              <input id="newPass2" type="password" placeholder="أعد كتابتها" required />
+            </div>
+          </label>
+          <div class="form-actions">
+            <button class="btn btn-primary" type="submit"><svg class="ico"><use href="#i-save"/></svg> تغيير كلمة المرور</button>
+          </div>
+        </form>
+        <div id="passMsg" class="alert" hidden></div>
       </div>
 
       <div class="card">

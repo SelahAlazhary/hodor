@@ -1,16 +1,17 @@
 /* ===== لوحة تحكم المدير ===== */
 import {
   $, $$, esc, toast, dateKey, monthKey, dateAr, dayAr, fullDateAr, timeAr,
-  minToHuman, minToHours, relAr, toDate, downloadCSV, LS
+  minToHuman, minToHours, relAr, toDate, downloadCSV, hhmmToMin, now, nowMs, zoned, msFromCairo, LS
 } from "./utils.js";
 import {
   watchDay, getMonth, summarize, markAbsent, clearRecord, editTimes,
   addEmployee, updateEmployee, removeEmployee, setRecord,
-  saveSettings, watchEvents, clearEvents, watchDevices, addNetwork, removeNetwork
+  saveSettings, watchEvents, clearEvents, watchDevices, addNetwork, removeNetwork, logEvent
 } from "./store.js";
 import { notify, askPermission, notifState, buzz } from "./notify.js";
 import { statusTag } from "./employee.js";
 import { getPublicIP } from "./network.js";
+import { changeAdminPassword } from "./auth.js";
 
 let ST = null;
 let unsubDay = null, unsubEvents = null, unsubDevices = null;
@@ -151,7 +152,9 @@ function paintToday() {
       <td>${r.checkOut ? minToHuman(r.workedMin) : (r.checkIn ? "جارٍ" : "—")}</td>
       <td>${statusTag(r)}</td>
       <td>
-        ${r.status !== "absent" ? `<button class="mini danger" data-act="abs" data-id="${emp.id}"><svg class="ico"><use href="#i-ban"/></svg> غياب</button>` : ""}
+        ${!r.checkIn && r.status !== "absent" ? `<button class="mini ok" data-act="in" data-id="${emp.id}"><svg class="ico"><use href="#i-check"/></svg> حضر</button>` : ""}
+        ${r.checkIn && !r.checkOut ? `<button class="mini warn" data-act="out" data-id="${emp.id}"><svg class="ico"><use href="#i-out"/></svg> انصرف</button>` : ""}
+        ${r.status !== "absent" ? `<button class="mini danger" data-act="abs" data-id="${emp.id}"><svg class="ico"><use href="#i-ban"/></svg> غاب</button>` : ""}
         <button class="mini" data-act="edit" data-id="${emp.id}"><svg class="ico"><use href="#i-edit"/></svg> تعديل</button>
         ${r.checkIn || r.status === "absent" ? `<button class="mini" data-act="del" data-id="${emp.id}"><svg class="ico"><use href="#i-trash"/></svg> مسح</button>` : ""}
       </td>
@@ -162,6 +165,41 @@ function paintToday() {
 
 async function todayAction(act, empId) {
   const emp = ST.employees.find(e => e.id === empId); if (!emp) return;
+  const isToday = curDate === dateKey();
+  const st = ST.settings || {};
+
+  // تسجيل حضور يدوي
+  if (act === "in") {
+    const ms = isToday ? nowMs() : msFromCairo(curDate, emp.workStart || st.workStart || "09:00");
+    const t = zoned(ms);
+    const startMin = hhmmToMin(emp.workStart || st.workStart || "09:00") || 0;
+    const lateMin = (t.getHours() * 60 + t.getMinutes()) - (startMin + Number(st.graceMin || 0));
+    await setRecord(curDate, empId, {
+      empId, empName: emp.name, date: curDate,
+      checkIn: new Date(ms).toISOString(), checkOut: null, workedMin: 0,
+      status: lateMin > 0 ? "late" : "present", lateMin: lateMin > 0 ? lateMin : 0,
+      expectedStart: emp.workStart || st.workStart || "",
+      expectedEnd: emp.workEnd || st.workEnd || "",
+      note: null, source: "admin", createdAt: nowMs()
+    });
+    logEvent({ type: "in", empId, empName: emp.name, date: curDate,
+               at: new Date(ms).toISOString(), status: lateMin > 0 ? "late" : "present" });
+    toast(`تم تسجيل حضور ${emp.name} — ${timeAr(ms)}`, "ok");
+    return;
+  }
+
+  // تسجيل انصراف يدوي
+  if (act === "out") {
+    const rec = dayRows.find(x => x.empId === empId);
+    if (!rec || !rec.checkIn) { toast("لا يوجد تسجيل حضور في هذا اليوم", "err"); return; }
+    const ms = isToday ? nowMs() : msFromCairo(curDate, emp.workEnd || st.workEnd || "17:00");
+    const workedMin = Math.max(0, Math.round((ms - toDate(rec.checkIn).getTime()) / 60000));
+    await setRecord(curDate, empId, { checkOut: new Date(ms).toISOString(), workedMin, completed: true });
+    logEvent({ type: "out", empId, empName: emp.name, date: curDate, at: new Date(ms).toISOString(), workedMin });
+    toast(`تم تسجيل انصراف ${emp.name} — ${minToHuman(workedMin)}`, "ok");
+    return;
+  }
+
   if (act === "abs") {
     const note = prompt(`سبب غياب ${emp.name} (اختياري):`, ""); if (note === null) return;
     await markAbsent(emp, curDate, note || "", "admin");
@@ -178,7 +216,8 @@ async function todayAction(act, empId) {
     if (cin === null) return;
     const cout = prompt("ساعة الانصراف (HH:MM) — اتركه فارغاً إن لم ينصرف:", r.checkOut ? hhmm(r.checkOut) : "");
     if (cout === null) return;
-    const iso = t => t && /^\d{1,2}:\d{2}$/.test(t.trim()) ? new Date(`${curDate}T${t.trim().padStart(5, "0")}:00`).toISOString() : null;
+    const iso = t => t && /^\d{1,2}:\d{2}$/.test(t.trim())
+      ? new Date(msFromCairo(curDate, t.trim().padStart(5, "0"))).toISOString() : null;
     const inISO = iso(cin), outISO = iso(cout);
     if (!inISO) { toast("صيغة الوقت غير صحيحة", "err"); return; }
     const base = {
@@ -190,7 +229,8 @@ async function todayAction(act, empId) {
     toast("تم تعديل السجل", "ok");
   }
 }
-const hhmm = v => { const d = toDate(v); return d ? `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}` : ""; };
+const hhmm = v => { const d = toDate(v); if (!d) return ""; const z = zoned(d);
+  return `${String(z.getHours()).padStart(2, "0")}:${String(z.getMinutes()).padStart(2, "0")}`; };
 
 /* ---------- الموظفون ---------- */
 function bindEmployees() {
@@ -348,7 +388,6 @@ function fillSettings() {
   $("#sEnd").value = s.workEnd || "17:00";
   $("#sGrace").value = s.graceMin ?? 15;
   $("#sDaily").value = s.dailyHours ?? 8;
-  $("#sPass").value = s.adminPass || "";
   const mode = s.checkinMode || "self";
   $$('input[name="mode"]').forEach(r => r.checked = r.value === mode);
 
@@ -394,8 +433,7 @@ function bindSettings() {
       workStart: $("#sStart").value || "09:00",
       workEnd: $("#sEnd").value || "17:00",
       graceMin: Number($("#sGrace").value || 0),
-      dailyHours: Number($("#sDaily").value || 8),
-      adminPass: $("#sPass").value.trim() || "azhari2026"
+      dailyHours: Number($("#sDaily").value || 8)
     });
     toast("تم حفظ الإعدادات ✅", "ok");
   };
@@ -405,6 +443,22 @@ function bindSettings() {
     if (r.value !== "self" && !(ST.settings?.kioskDeviceId))
       toast("اختر الجهاز المعتمد من جدول الأجهزة بالأسفل");
   });
+  $("#passForm").onsubmit = async e => {
+    e.preventDefault();
+    const msg = $("#passMsg");
+    const show = (t, ok) => { msg.textContent = t; msg.className = "alert " + (ok ? "ok" : "error"); msg.hidden = false; };
+    const cur = $("#curPass").value, np = $("#newPass").value, np2 = $("#newPass2").value;
+    if (np !== np2) { show("كلمة المرور الجديدة وتأكيدها غير متطابقين", false); return; }
+    const btn = e.target.querySelector('button[type="submit"]');
+    btn.disabled = true;
+    const r = await changeAdminPassword(cur, np, ST.settings?.adminPass || null);
+    btn.disabled = false;
+    if (!r.ok) { show(r.error, false); return; }
+    e.target.reset();
+    show("تم تغيير كلمة المرور بنجاح — استخدمها في الدخول القادم", true);
+    toast("تم تغيير كلمة المرور", "ok");
+  };
+
   $("#refreshDev").onclick = () => paintDevices();
 
   $("#sAuto").onchange = async e => {

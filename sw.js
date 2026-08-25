@@ -1,5 +1,5 @@
 /* ===== Service Worker — تشغيل بدون إنترنت + الإشعارات ===== */
-const VERSION = "azhari-attendance-v3";
+const VERSION = "azhari-attendance-v4";
 const CFG_CACHE = "azhari-config";   // كاش دائم لإعدادات الحضور التلقائي
 const SHELL = [
   "./", "./index.html", "./manifest.webmanifest",
@@ -112,6 +112,19 @@ self.addEventListener("sync", e => {
 });
 
 const p2 = n => String(n).padStart(2, "0");
+
+/** يحوّل لحظة إلى كائن تاريخ بقِيَم توقيت القاهرة */
+function cairo(ms) {
+  const f = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Africa/Cairo", hour12: false,
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", second: "2-digit"
+  });
+  const o = {};
+  for (const part of f.formatToParts(new Date(ms))) if (part.type !== "literal") o[part.type] = +part.value;
+  if (o.hour === 24) o.hour = 0;
+  return new Date(o.year, o.month - 1, o.day, o.hour, o.minute, o.second);
+}
 const toMin = t => { const [h, m] = String(t || "").split(":").map(Number); return isNaN(h) ? null : h * 60 + m; };
 
 async function publicIP() {
@@ -143,7 +156,9 @@ async function autoCheckin() {
     const nets = Object.values(S.networks || {});
     if (!nets.length) return;
 
-    const now = new Date();
+    // الوقت من الساعة العالمية وبتوقيت القاهرة — لا من ساعة الجهاز ولا منطقته الزمنية
+    const ms = Date.now() + (Number(cfg.clockOffset) || 0);
+    const now = cairo(ms);
     const cur = now.getHours() * 60 + now.getMinutes();
     if (cur < (toMin(S.autoWindowStart) ?? 300) || cur > (toMin(S.autoWindowEnd) ?? 1439)) return;
 
@@ -159,7 +174,7 @@ async function autoCheckin() {
     const late = cur - (startMin + Number(S.graceMin || 0));
     const rec = {
       empId: cfg.empId, empName: cfg.empName, date: dk,
-      checkIn: now.toISOString(), checkOut: null, workedMin: 0,
+      checkIn: new Date(ms).toISOString(), checkOut: null, workedMin: 0,
       status: late > 0 ? "late" : "present", lateMin: late > 0 ? late : 0,
       source: "auto-wifi-bg", createdAt: Date.now(), updatedAt: Date.now()
     };

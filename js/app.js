@@ -1,8 +1,9 @@
 /* ===== نقطة البداية: الإقلاع، الدخول، التوجيه، تثبيت التطبيق ===== */
 import { $, $$, LS, toast, esc, normName } from "./utils.js";
 import { getSettings, watchSettings, watchEmployees, findEmployeeByName, registerDevice,
-         watchConnection, flush, pendingCount } from "./store.js";
+         watchConnection, watchServerClock, flush, pendingCount } from "./store.js";
 import { askPermission } from "./notify.js";
+import { verifyAdmin } from "./auth.js";
 import { initEmployee, disposeEmployee } from "./employee.js";
 import { initAdmin, disposeAdmin } from "./admin.js";
 
@@ -131,12 +132,32 @@ $("#empNameInput").addEventListener("input", e => {
 $("#admLoginForm").addEventListener("submit", async e => {
   e.preventDefault();
   const pass = $("#admPassInput").value;
-  const s = state.settings || await getSettings();
-  if (pass !== (s.adminPass || "azhari2026")) { loginError("كلمة المرور غير صحيحة"); return; }
+  const btn = e.target.querySelector('button[type="submit"]');
+  const label = btn.textContent;
+  btn.disabled = true; btn.textContent = "جارٍ التحقق…";
+  try {
+    const s = state.settings || await getSettings();
+    const r = await verifyAdmin(pass, s.adminPass || null);
+    if (!r.ok) { loginError("كلمة المرور غير صحيحة"); return; }
+  } catch (err) {
+    loginError("تعذّر التحقق — تأكد من الاتصال بالإنترنت"); return;
+  } finally {
+    btn.disabled = false; btn.textContent = label;
+  }
   await askPermission(true);
   state.session = { role: "admin", name: "المدير" };
   LS.set("az_session", state.session);
   startSession();
+});
+
+/* ---------- إظهار/إخفاء كلمة المرور ---------- */
+document.addEventListener("click", e => {
+  const b = e.target.closest("[data-pw]");
+  if (!b) return;
+  const inp = document.getElementById(b.dataset.pw);
+  if (!inp) return;
+  inp.type = inp.type === "password" ? "text" : "password";
+  b.title = inp.type === "password" ? "إظهار كلمة المرور" : "إخفاء كلمة المرور";
 });
 
 /* ---------- بدء الجلسة ---------- */
@@ -163,6 +184,7 @@ export function startSession() {
   };
   const fallback = setTimeout(showUI, 3000);
 
+  watchServerClock();            // مزامنة الوقت مع الساعة العالمية
   registerDevice().catch(() => {});
 
   // الإعدادات (مباشر)

@@ -3,7 +3,24 @@
     ".read": false,
     ".write": false,
 
-    "settings":   { ".read": true, ".write": true },
+    "settings": {
+      "global": { ".read": true, ".write": true },
+
+      "auth": {
+        ".read": false,
+        ".write": "!data.exists() || newData.child('prev').val() === data.child('hash').val()",
+        ".validate": "newData.hasChild('hash') && newData.child('hash').isString()"
+      }
+    },
+
+    "adminAuth": {
+      "$device": {
+        ".read": false,
+        ".write": true,
+        ".validate": "newData.hasChildren(['h','at']) && newData.child('h').val() === root.child('settings/auth/hash').val()"
+      }
+    },
+
     "employees":  { ".read": true, ".write": true },
     "attendance": { ".read": true, ".write": true },
     "events":     { ".read": true, ".write": true },

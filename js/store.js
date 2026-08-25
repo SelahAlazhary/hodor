@@ -8,7 +8,8 @@ import {
   db, PATH, ref, get, set, update, remove, push,
   onValue, query, orderByKey, startAt, endAt, limitToLast
 } from "./firebase.js";
-import { LS, dateKey, monthRange, hhmmToMin, toDate, normName, deviceId } from "./utils.js";
+import { LS, dateKey, monthRange, hhmmToMin, toDate, normName, deviceId,
+         now, nowMs, instant, setClockOffset } from "./utils.js";
 
 /* ---------------- الإعدادات الافتراضية ---------------- */
 export const DEFAULT_SETTINGS = {
@@ -17,15 +18,14 @@ export const DEFAULT_SETTINGS = {
   workEnd: "17:00",
   graceMin: 15,
   dailyHours: 8,
-  adminPass: "azhari2026",
   checkinMode: "self",      // self | kiosk | both
   kioskDeviceId: "",
   kioskDeviceName: "",
   /* الحضور التلقائي عند الاتصال بشبكة الشركة */
   autoCheckin: false,
   networks: {},             // { "41_33_12_5": { ip, label, addedAt } }
-  autoWindowStart: "05:00",
-  autoWindowEnd: "23:59"
+  autoWindowStart: "06:00",
+  autoWindowEnd: "17:30"
 };
 
 /* ================= الطابور المحلي ================= */
@@ -38,7 +38,7 @@ const saveOutbox = () => { LS.set(OUTBOX_KEY, outbox); refreshers.forEach(f => {
 export const pendingCount = () => outbox.length;
 
 function enqueue(path, data) {
-  outbox.push({ id: Date.now() + "_" + Math.random().toString(36).slice(2, 7), path, data, tries: 0 });
+  outbox.push({ id: nowMs() + "_" + Math.random().toString(36).slice(2, 7), path, data, tries: 0 });
   saveOutbox();
   flush();
 }
@@ -132,6 +132,14 @@ async function readPath(path) {
 const notEmpty = o => o && typeof o === "object" && Object.keys(o).length > 0;
 const entries = o => Object.entries(o || {});
 
+/** مزامنة الساعة مع خادم Firebase (الساعة العالمية) */
+export function watchServerClock(cb) {
+  return onValue(ref(db, ".info/serverTimeOffset"), s => {
+    const off = Number(s.val());
+    if (isFinite(off)) { setClockOffset(off); cb?.(off); }
+  }, () => {});
+}
+
 /** مراقبة حالة الاتصال بالقاعدة */
 export function watchConnection(cb) {
   return onValue(ref(db, ".info/connected"), s => { const on = s.val() === true; if (on) flush(); cb(on); },
@@ -142,21 +150,21 @@ export function watchConnection(cb) {
 export async function getSettings() {
   const v = await readPath(PATH.settings);
   if (notEmpty(v)) return { ...DEFAULT_SETTINGS, ...v };
-  enqueue(PATH.settings, { ...DEFAULT_SETTINGS, createdAt: Date.now() });
+  enqueue(PATH.settings, { ...DEFAULT_SETTINGS, createdAt: nowMs() });
   return { ...DEFAULT_SETTINGS };
 }
 export function watchSettings(cb) {
   return watchPath(PATH.settings, v => ({ ...DEFAULT_SETTINGS, ...(v || {}) }), cb);
 }
 export function saveSettings(patch) {
-  enqueue(PATH.settings, { ...patch, updatedAt: Date.now() });
+  enqueue(PATH.settings, { ...patch, updatedAt: nowMs() });
   return Promise.resolve();
 }
 
 /** شبكات الشركة المعتمدة للحضور التلقائي */
 export function addNetwork(ip, label) {
   const key = String(ip).replace(/[.:#$/\[\]]/g, "_");
-  enqueue(`${PATH.settings}/networks/${key}`, { ip: String(ip).trim(), label: label || "", addedAt: Date.now() });
+  enqueue(`${PATH.settings}/networks/${key}`, { ip: String(ip).trim(), label: label || "", addedAt: nowMs() });
 }
 export function removeNetwork(ip) {
   const key = String(ip).replace(/[.:#$/\[\]]/g, "_");
@@ -180,12 +188,12 @@ export async function addEmployee(data) {
     workStart: data.workStart || "",
     workEnd: data.workEnd || "",
     active: data.active !== false,
-    createdAt: Date.now()
+    createdAt: nowMs()
   });
   return id;
 }
 export async function updateEmployee(id, data) {
-  const patch = { ...data, updatedAt: Date.now() };
+  const patch = { ...data, updatedAt: nowMs() };
   if (data.name) patch.nameKey = normName(data.name);
   enqueue(`${PATH.employees}/${id}`, patch);
 }
@@ -239,50 +247,50 @@ export async function getMonth(mk, empId = null) {
   return rows;
 }
 
-function lateCheck(now, emp, settings) {
+function lateCheck(t, emp, settings) {
   const start = hhmmToMin(emp.workStart || settings.workStart);
   if (start == null) return { status: "present", lateMin: 0 };
-  const cur = now.getHours() * 60 + now.getMinutes();
+  const cur = t.getHours() * 60 + t.getMinutes();
   const lateMin = cur - (start + Number(settings.graceMin || 0));
   return lateMin > 0 ? { status: "late", lateMin } : { status: "present", lateMin: 0 };
 }
 
 /** تسجيل حضور */
 export async function checkIn(emp, settings, source = "self") {
-  const now = new Date(), dk = dateKey(now);
+  const t = now(), inst = instant(), dk = dateKey(t);
   const exist = await getRecord(dk, emp.id);
   if (exist && exist.checkIn) return { ok: false, error: "تم تسجيل حضورك اليوم بالفعل", record: exist };
 
-  const { status, lateMin } = lateCheck(now, emp, settings);
+  const { status, lateMin } = lateCheck(t, emp, settings);
   const rec = {
     empId: emp.id, empName: emp.name, date: dk,
-    checkIn: now.toISOString(), checkOut: null,
+    checkIn: inst.toISOString(), checkOut: null,
     workedMin: 0, status, lateMin,
     expectedStart: emp.workStart || settings.workStart,
     expectedEnd: emp.workEnd || settings.workEnd,
     source, deviceId: deviceId(),
-    createdAt: Date.now(), updatedAt: Date.now()
+    createdAt: nowMs(), updatedAt: nowMs()
   };
   enqueue(attPath(dk, emp.id), rec);
-  logEvent({ type: "in", empId: emp.id, empName: emp.name, date: dk, at: now.toISOString(), status });
+  logEvent({ type: "in", empId: emp.id, empName: emp.name, date: dk, at: inst.toISOString(), status });
   return { ok: true, record: rec };
 }
 
 /** تسجيل انصراف — يحسب ساعات اليوم تلقائياً */
 export async function checkOut(emp, settings) {
-  const now = new Date(), dk = dateKey(now);
+  const inst = instant(), dk = dateKey(now());
   const exist = await getRecord(dk, emp.id);
   if (!exist || !exist.checkIn) return { ok: false, error: "يجب تسجيل الحضور أولاً" };
   if (exist.checkOut) return { ok: false, error: "تم تسجيل انصرافك اليوم بالفعل", record: exist };
 
-  const workedMin = Math.max(0, Math.round((now - toDate(exist.checkIn)) / 60000));
+  const workedMin = Math.max(0, Math.round((nowMs() - toDate(exist.checkIn).getTime()) / 60000));
   const patch = {
-    checkOut: now.toISOString(), workedMin,
+    checkOut: inst.toISOString(), workedMin,
     status: exist.status === "late" ? "late" : "present",
-    completed: true, updatedAt: Date.now()
+    completed: true, updatedAt: nowMs()
   };
   enqueue(attPath(dk, emp.id), patch);
-  logEvent({ type: "out", empId: emp.id, empName: emp.name, date: dk, at: now.toISOString(), workedMin });
+  logEvent({ type: "out", empId: emp.id, empName: emp.name, date: dk, at: inst.toISOString(), workedMin });
   return { ok: true, record: { ...exist, ...patch } };
 }
 
@@ -292,21 +300,21 @@ export async function markAbsent(emp, dk = dateKey(), note = "", by = "admin") {
     empId: emp.id, empName: emp.name, date: dk,
     checkIn: null, checkOut: null, workedMin: 0,
     status: "absent", note, markedBy: by,
-    createdAt: Date.now(), updatedAt: Date.now()
+    createdAt: nowMs(), updatedAt: nowMs()
   };
   enqueue(attPath(dk, emp.id), rec);
-  logEvent({ type: "abs", empId: emp.id, empName: emp.name, date: dk, at: new Date().toISOString(), note });
+  logEvent({ type: "abs", empId: emp.id, empName: emp.name, date: dk, at: instant().toISOString(), note });
   return rec;
 }
 
 /** كتابة/تعديل سجل من لوحة المدير */
 export async function setRecord(dk, empId, data) {
-  enqueue(attPath(dk, empId), { ...data, updatedAt: Date.now() });
+  enqueue(attPath(dk, empId), { ...data, updatedAt: nowMs() });
 }
 export async function clearRecord(dk, empId) { enqueue(attPath(dk, empId), null); }
 
 export async function editTimes(dk, empId, checkInISO, checkOutISO) {
-  const patch = { checkIn: checkInISO || null, checkOut: checkOutISO || null, updatedAt: Date.now() };
+  const patch = { checkIn: checkInISO || null, checkOut: checkOutISO || null, updatedAt: nowMs() };
   if (checkInISO && checkOutISO)
     patch.workedMin = Math.max(0, Math.round((new Date(checkOutISO) - new Date(checkInISO)) / 60000));
   enqueue(attPath(dk, empId), patch);
@@ -331,7 +339,7 @@ export function summarize(rows) {
 /* ================= سجل الأحداث (إشعارات المدير) ================= */
 export function logEvent(ev) {
   const id = push(ref(db, PATH.events)).key;
-  enqueue(`${PATH.events}/${id}`, { ...ev, createdAt: Date.now() });
+  enqueue(`${PATH.events}/${id}`, { ...ev, createdAt: nowMs() });
 }
 export function watchEvents(cb, n = 60) {
   let raw = LS.get(cacheKey(PATH.events), null);
@@ -362,7 +370,7 @@ export async function registerDevice() {
              : /iPhone|iPad/i.test(ua) ? "جهاز آيفون/آيباد"
              : /Windows/i.test(ua) ? "كمبيوتر ويندوز"
              : /Mac/i.test(ua) ? "جهاز ماك" : "جهاز";
-  enqueue(`${PATH.devices}/${id}`, { name, ua: ua.slice(0, 160), lastSeen: Date.now() });
+  enqueue(`${PATH.devices}/${id}`, { name, ua: ua.slice(0, 160), lastSeen: nowMs() });
   return id;
 }
 export function watchDevices(cb) {
