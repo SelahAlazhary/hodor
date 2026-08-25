@@ -524,3 +524,12 @@ code{font-size:11px;background:var(--line-2);padding:2px 6px;border-radius:6px;d
 .clock-src::before{content:"";width:5px;height:5px;border-radius:50%;background:var(--muted)}
 .clock-src.synced{color:var(--green-600)}
 .clock-src.synced::before{background:var(--green-500);box-shadow:0 0 0 3px rgba(18,163,90,.15)}
+
+/* ═══════════ الوقت الإضافي ═══════════ */
+.ot{color:var(--gold-700);font-weight:800;background:var(--gold-100);
+    border-radius:14px;padding:2px 9px;font-size:11.5px;display:inline-block}
+.ot-val{color:var(--gold-700)}
+.si-gold{background:var(--gold-100);color:var(--gold-700)}
+.gauge-pct.over{background:linear-gradient(135deg,var(--gold),var(--gold-400));color:#3d2f00}
+.rep-sep{opacity:.45;margin:0 6px}
+.stats-row{grid-template-columns:repeat(auto-fit,minmax(125px,1fr))}

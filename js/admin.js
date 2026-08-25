@@ -4,7 +4,7 @@ import {
   minToHuman, minToHours, relAr, toDate, downloadCSV, hhmmToMin, now, nowMs, zoned, msFromCairo, LS
 } from "./utils.js";
 import {
-  watchDay, getMonth, summarize, markAbsent, clearRecord, editTimes,
+  watchDay, getMonth, summarize, markAbsent, clearRecord, editTimes, overtimeOf, requiredMinOf,
   addEmployee, updateEmployee, removeEmployee, setRecord,
   saveSettings, watchEvents, clearEvents, watchDevices, addNetwork, removeNetwork, logEvent
 } from "./store.js";
@@ -124,10 +124,10 @@ function bindToday() {
     toast(`تم تسجيل غياب ${emps.length} موظف`, "ok");
   };
   $("#exportToday").onclick = () => {
-    const rows = [["الموظف", "التاريخ", "الحضور", "الانصراف", "الساعات", "الحالة"]];
+    const rows = [["الموظف", "التاريخ", "الحضور", "الانصراف", "الساعات", "الإضافي (ساعة)", "الحالة"]];
     dayRows.forEach(r => rows.push([r.empName, r.date,
       r.checkIn ? timeAr(r.checkIn) : "", r.checkOut ? timeAr(r.checkOut) : "",
-      minToHours(r.workedMin), statusAr(r)]));
+      minToHours(r.workedMin), minToHours(overtimeOf(r, ST.settings || {})), statusAr(r)]));
     downloadCSV(`حضور-${curDate}.csv`, rows);
   };
 }
@@ -150,6 +150,8 @@ function paintToday() {
       <td>${r.checkIn ? timeAr(r.checkIn) : "—"}</td>
       <td>${r.checkOut ? timeAr(r.checkOut) : "—"}</td>
       <td>${r.checkOut ? minToHuman(r.workedMin) : (r.checkIn ? "جارٍ" : "—")}</td>
+      <td>${(() => { const ot = overtimeOf(r, ST.settings || {}, emp);
+              return ot > 0 ? `<span class="ot">+${minToHuman(ot)}</span>` : "—"; })()}</td>
       <td>${statusTag(r)}</td>
       <td>
         ${!r.checkIn && r.status !== "absent" ? `<button class="mini ok" data-act="in" data-id="${emp.id}"><svg class="ico"><use href="#i-check"/></svg> حضر</button>` : ""}
@@ -300,10 +302,16 @@ function bindReport() {
   $("#repMonth").onchange = loadReport;
   $("#exportRep").onclick = () => {
     const mk = $("#repMonth").value;
-    const rows = [["الموظف", "أيام الحضور", "أيام الغياب", "مرات التأخير", "إجمالي الساعات", "متوسط اليوم (ساعة)"]];
-    repRows.forEach(x => rows.push([x.name, x.s.days, x.s.absent, x.s.late, x.s.hours, minToHours(x.s.avgMin)]));
+    const rows = [["الموظف", "الدوام", "أيام الحضور", "أيام الغياب", "مرات التأخير",
+                   "إجمالي الساعات", "ساعات إضافية", "متوسط اليوم (ساعة)"]];
+    repRows.forEach(x => rows.push([
+      x.name,
+      `${x.emp.workStart || ST.settings?.workStart || ""} - ${x.emp.workEnd || ST.settings?.workEnd || ""}`,
+      x.s.days, x.s.absent, x.s.late, x.s.hours, x.s.overtimeHours, minToHours(x.s.avgMin)]));
     rows.push([]);
-    rows.push(["إجمالي ساعات الشركة", "", "", "", repRows.reduce((a, x) => a + x.s.hours, 0).toFixed(2), ""]);
+    rows.push(["الإجمالي", "", "", "", "",
+      repRows.reduce((a, x) => a + x.s.hours, 0).toFixed(2),
+      repRows.reduce((a, x) => a + x.s.overtimeHours, 0).toFixed(2), ""]);
     downloadCSV(`تقرير-${mk}.csv`, rows);
   };
   $("#printRep").onclick = () => window.print();
@@ -315,7 +323,10 @@ async function loadReport() {
   let all = [];
   try { all = await getMonth(mk); } catch (e) { console.warn(e); toast("تعذّر تحميل التقرير", "err"); }
   const emps = ST?.employees || [];
-  repRows = emps.map(e => ({ id: e.id, name: e.name, s: summarize(all.filter(r => r.empId === e.id)) }));
+  repRows = emps.map(e => ({
+    id: e.id, name: e.name, emp: e,
+    s: summarize(all.filter(r => r.empId === e.id), ST?.settings || {}, e)
+  }));
 
   const tb = $("#repTable tbody");
   tb.innerHTML = repRows.map(x => `
@@ -325,10 +336,12 @@ async function loadReport() {
       <td>${x.s.absent}</td>
       <td>${x.s.late}</td>
       <td><b style="color:var(--green)">${x.s.hours}</b> ساعة</td>
+      <td>${x.s.overtimeHours > 0 ? `<span class="ot">+${x.s.overtimeHours} ساعة</span>` : "—"}</td>
       <td>${minToHuman(x.s.avgMin)}</td>
       <td><button class="mini" data-r="${x.id}"><svg class="ico"><use href="#i-eye"/></svg> عرض</button></td>
     </tr>`).join("");
   $("#repGrand").textContent = repRows.reduce((a, x) => a + x.s.hours, 0).toFixed(2);
+  $("#repOt").textContent = repRows.reduce((a, x) => a + x.s.overtimeHours, 0).toFixed(2);
 
   tb.querySelectorAll("button[data-r]").forEach(b => b.onclick = () => {
     const id = b.dataset.r;
@@ -340,7 +353,9 @@ async function loadReport() {
       <td>${r.checkIn ? timeAr(r.checkIn) : "—"}</td>
       <td>${r.checkOut ? timeAr(r.checkOut) : "—"}</td>
       <td>${r.checkOut ? minToHuman(r.workedMin) : "—"}</td>
-      <td>${statusTag(r)}</td></tr>`).join("") || `<tr><td colspan="6" style="text-align:center;color:var(--muted)">لا توجد سجلات</td></tr>`;
+      <td>${(() => { const ot = overtimeOf(r, ST?.settings || {}, emp);
+              return ot > 0 ? `<span class="ot">+${minToHuman(ot)}</span>` : "—"; })()}</td>
+      <td>${statusTag(r)}</td></tr>`).join("") || `<tr><td colspan="7" style="text-align:center;color:var(--muted)">لا توجد سجلات</td></tr>`;
     $("#repDetailCard").hidden = false;
     $("#repDetailCard").scrollIntoView({ behavior: "smooth" });
   });

@@ -6,7 +6,8 @@ import {
 import { getPublicIP, ipMatches } from "./network.js";
 import { DB_URL } from "./firebase.js";
 import {
-  checkIn, checkOut, markAbsent, watchRecord, getMonth, summarize
+  checkIn, checkOut, markAbsent, watchRecord, getMonth, summarize,
+  requiredMinOf, overtimeOf
 } from "./store.js";
 import { notify, askPermission, buzz } from "./notify.js";
 
@@ -68,16 +69,21 @@ const RING_TODAY = 540.35, RING_MONTH = 207.35;
 function paintGauge() {
   const ring = $("#todayRing"), pct = $("#todayPct");
   if (!ring) return;
-  const dailyMin = Math.max(30, (Number(ST?.settings?.dailyHours) || 8) * 60);
+  const dailyMin = Math.max(30, requiredMinOf(today, ST?.settings || {}, EMP));
   let worked = 0;
   if (today?.checkIn) {
     const endMs = today.checkOut ? toDate(today.checkOut).getTime() : nowMs();
     worked = Math.max(0, (endMs - toDate(today.checkIn).getTime()) / 60000);
   }
-  const p = Math.max(0, Math.min(1, worked / dailyMin));
+  const ratio = worked / dailyMin;
+  const p = Math.max(0, Math.min(1, ratio));
   ring.style.strokeDashoffset = RING_TODAY * (1 - p);
+  const extra = Math.max(0, Math.round(worked - dailyMin));
+  pct.className = "gauge-pct" + (extra > 0 ? " over" : "");
   pct.textContent = today?.status === "absent" ? "غياب اليوم"
-    : today?.checkIn ? `${Math.round(p * 100)}% من دوام اليوم` : "لم يبدأ الدوام";
+    : !today?.checkIn ? "لم يبدأ الدوام"
+    : extra > 0 ? `اكتمل الدوام + ${minToHuman(extra)} إضافي`
+    : `${Math.round(ratio * 100)}% من دوام اليوم`;
 }
 
 function startClock() {
@@ -223,12 +229,13 @@ async function loadHistory() {
   let rows = [];
   try { rows = await getMonth(mk, t.id); } catch (e) { console.warn(e); }
 
-  const s = summarize(rows);
+  const s = summarize(rows, ST?.settings || {}, EMP);
   $("#stMonthHours").textContent = s.hours;
+  $("#stOvertime").textContent = s.overtimeHours;
 
   // حلقة SVG: نسبة الساعات المنجزة إلى المطلوبة عن أيام الحضور
-  const daily = Number(ST?.settings?.dailyHours) || 8;
-  const target = daily * Math.max(1, s.days);
+  const dailyMin = requiredMinOf(null, ST?.settings || {}, EMP);
+  const target = (dailyMin / 60) * Math.max(1, s.days);
   const ring = $("#monthRing");
   if (ring) ring.style.strokeDashoffset = RING_MONTH * (1 - Math.max(0, Math.min(1, s.hours / target)));
 
@@ -244,9 +251,16 @@ async function loadHistory() {
       <td>${r.checkIn ? timeAr(r.checkIn) : "—"}</td>
       <td>${r.checkOut ? timeAr(r.checkOut) : "—"}</td>
       <td>${r.checkOut ? minToHuman(r.workedMin) : (r.checkIn ? "جارٍ" : "—")}</td>
+      <td>${otCell(r)}</td>
       <td>${statusTag(r)}</td>
     </tr>`).join("");
   $("#empHistEmpty").hidden = rows.length > 0;
+}
+
+/** خلية الوقت الإضافي */
+function otCell(r) {
+  const ot = overtimeOf(r, ST?.settings || {}, EMP);
+  return ot > 0 ? `<span class="ot">+${minToHuman(ot)}</span>` : "—";
 }
 
 export function statusTag(r) {

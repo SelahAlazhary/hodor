@@ -257,6 +257,10 @@
         <span class="stat-val" id="stDays">0</span><span class="stat-lbl">أيام الحضور</span>
       </div>
       <div class="stat card">
+        <span class="stat-ico si-gold"><svg class="ico"><use href="#i-trend"/></svg></span>
+        <span class="stat-val ot-val" id="stOvertime">0</span><span class="stat-lbl">ساعات إضافية</span>
+      </div>
+      <div class="stat card">
         <span class="stat-ico si-amber"><svg class="ico"><use href="#i-hourglass"/></svg></span>
         <span class="stat-val" id="stLate">0</span><span class="stat-lbl">مرات التأخير</span>
       </div>
@@ -273,7 +277,7 @@
       </div>
       <div class="table-wrap">
         <table class="table" id="empHistTable">
-          <thead><tr><th>اليوم</th><th>التاريخ</th><th>حضور</th><th>انصراف</th><th>الساعات</th><th>الحالة</th></tr></thead>
+          <thead><tr><th>اليوم</th><th>التاريخ</th><th>حضور</th><th>انصراف</th><th>الساعات</th><th>إضافي</th><th>الحالة</th></tr></thead>
           <tbody></tbody>
         </table>
       </div>
@@ -367,7 +371,7 @@
         </div>
         <div class="table-wrap">
           <table class="table" id="todayTable">
-            <thead><tr><th>الموظف</th><th>حضور</th><th>انصراف</th><th>الساعات</th><th>الحالة</th><th>إجراءات</th></tr></thead>
+            <thead><tr><th>الموظف</th><th>حضور</th><th>انصراف</th><th>الساعات</th><th>إضافي</th><th>الحالة</th><th>إجراءات</th></tr></thead>
             <tbody></tbody>
           </table>
         </div>
@@ -388,6 +392,10 @@
           <label class="field"><span>الحالة</span>
             <select id="fActive" class="select"><option value="1">نشط</option><option value="0">موقوف</option></select>
           </label>
+          <p class="hint" style="grid-column:1/-1;margin-bottom:8px">
+            حدّد مواعيد دوام كل موظف (مثلاً 9 ← 5 أو 10 ← 6). كل ما يزيد عن هذه المدة
+            يُحسب <b>وقتاً إضافياً</b> تلقائياً. اتركها فارغة لاستخدام دوام الشركة الافتراضي.
+          </p>
           <div class="form-actions">
             <button class="btn btn-primary" type="submit"><svg class="ico"><use href="#i-save"/></svg> <span id="empFormBtnLabel">حفظ</span></button>
             <button class="btn btn-ghost" type="button" id="empFormReset">إلغاء</button>
@@ -424,13 +432,14 @@
         </div>
         <div class="table-wrap">
           <table class="table" id="repTable">
-            <thead><tr><th>الموظف</th><th>أيام الحضور</th><th>الغياب</th><th>التأخير</th><th>إجمالي الساعات</th><th>متوسط اليوم</th><th>تفاصيل</th></tr></thead>
+            <thead><tr><th>الموظف</th><th>أيام الحضور</th><th>الغياب</th><th>التأخير</th><th>إجمالي الساعات</th><th>ساعات إضافية</th><th>متوسط اليوم</th><th>تفاصيل</th></tr></thead>
             <tbody></tbody>
           </table>
         </div>
         <div class="rep-total">
           <svg class="ico"><use href="#i-trend"/></svg>
           إجمالي ساعات الشركة هذا الشهر: <b id="repGrand">0</b> ساعة
+          <span class="rep-sep">•</span> منها إضافي: <b id="repOt" class="ot">0</b> ساعة
         </div>
       </div>
       <div class="card" id="repDetailCard" hidden>
@@ -440,7 +449,7 @@
         </div>
         <div class="table-wrap">
           <table class="table" id="repDetailTable">
-            <thead><tr><th>التاريخ</th><th>اليوم</th><th>حضور</th><th>انصراف</th><th>ساعات</th><th>الحالة</th></tr></thead>
+            <thead><tr><th>التاريخ</th><th>اليوم</th><th>حضور</th><th>انصراف</th><th>ساعات</th><th>إضافي</th><th>الحالة</th></tr></thead>
             <tbody></tbody>
           </table>
         </div>

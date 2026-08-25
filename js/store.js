@@ -284,8 +284,10 @@ export async function checkOut(emp, settings) {
   if (exist.checkOut) return { ok: false, error: "تم تسجيل انصرافك اليوم بالفعل", record: exist };
 
   const workedMin = Math.max(0, Math.round((nowMs() - toDate(exist.checkIn).getTime()) / 60000));
+  const requiredMin = requiredMinOf(exist, settings, emp);
   const patch = {
-    checkOut: inst.toISOString(), workedMin,
+    checkOut: inst.toISOString(), workedMin, requiredMin,
+    overtimeMin: Math.max(0, workedMin - requiredMin),
     status: exist.status === "late" ? "late" : "present",
     completed: true, updatedAt: nowMs()
   };
@@ -320,18 +322,47 @@ export async function editTimes(dk, empId, checkInISO, checkOutISO) {
   enqueue(attPath(dk, empId), patch);
 }
 
+/* ================= ساعات الدوام والوقت الإضافي ================= */
+/** الدقائق المطلوبة في اليوم لهذا الموظف (من مواعيده الخاصة أو الافتراضية) */
+export function requiredMinOf(rec, settings = {}, emp = null) {
+  const a = hhmmToMin(rec?.expectedStart || emp?.workStart || settings.workStart);
+  const b = hhmmToMin(rec?.expectedEnd   || emp?.workEnd   || settings.workEnd);
+  if (a != null && b != null) {
+    let d = b - a;
+    if (d < 0) d += 1440;          // دوام يمتد بعد منتصف الليل
+    if (d > 0) return d;
+  }
+  return Math.round((Number(settings.dailyHours) || 8) * 60);
+}
+/** الدقائق الإضافية فوق الدوام المطلوب */
+export function overtimeOf(rec, settings = {}, emp = null) {
+  if (!rec || !rec.checkOut) return 0;
+  if (Number.isFinite(rec.overtimeMin)) return Math.max(0, rec.overtimeMin);
+  return Math.max(0, Number(rec.workedMin || 0) - requiredMinOf(rec, settings, emp));
+}
+/** الدقائق الناقصة عن الدوام المطلوب */
+export function shortageOf(rec, settings = {}, emp = null) {
+  if (!rec || !rec.checkOut) return 0;
+  return Math.max(0, requiredMinOf(rec, settings, emp) - Number(rec.workedMin || 0));
+}
+
 /* ================= التجميع الشهري ================= */
-export function summarize(rows) {
-  const s = { days: 0, absent: 0, late: 0, minutes: 0, open: 0 };
+export function summarize(rows, settings = {}, emp = null) {
+  const s = { days: 0, absent: 0, late: 0, minutes: 0, open: 0, overtimeMin: 0, shortMin: 0 };
   for (const r of rows) {
     if (r.status === "absent") { s.absent++; continue; }
     if (r.checkIn) {
       s.days++;
       if (r.status === "late") s.late++;
-      if (r.checkOut) s.minutes += Number(r.workedMin || 0); else s.open++;
+      if (r.checkOut) {
+        s.minutes += Number(r.workedMin || 0);
+        s.overtimeMin += overtimeOf(r, settings, emp);
+        s.shortMin += shortageOf(r, settings, emp);
+      } else s.open++;
     }
   }
   s.hours = Math.round((s.minutes / 60) * 100) / 100;
+  s.overtimeHours = Math.round((s.overtimeMin / 60) * 100) / 100;
   s.avgMin = s.days ? Math.round(s.minutes / s.days) : 0;
   return s;
 }
