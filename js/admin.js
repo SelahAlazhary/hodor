@@ -88,11 +88,14 @@ function startDay() {
 
 function paintDash() {
   const emps = (ST.employees || []).filter(e => e.active !== false);
-  const present = dayRows.filter(r => r.checkIn);
+  // نحسب من سجلات الموظفين الموجودين فقط — نتجاهل سجلات موظفين محذوفين
+  const ids = new Set(emps.map(e => e.id));
+  const rows = dayRows.filter(r => ids.has(r.empId));
+
+  const present = rows.filter(r => r.checkIn);
   const late = present.filter(r => r.status === "late");
   const out = present.filter(r => r.checkOut);
-  const absentMarked = dayRows.filter(r => r.status === "absent").length;
-  const notIn = emps.filter(e => !dayRows.some(r => r.empId === e.id && r.checkIn)).length;
+  const notIn = emps.filter(e => !rows.some(r => r.empId === e.id && r.checkIn)).length;
   const mins = present.reduce((a, r) => a + Number(r.workedMin || 0), 0);
 
   $("#kTotal").textContent = emps.length;
@@ -102,12 +105,15 @@ function paintDash() {
   $("#kOut").textContent = out.length;
   $("#kHours").textContent = minToHours(mins);
 
-  // حلقة SVG لنسبة الحضور اليوم
+  // حلقة SVG لنسبة الحضور اليوم — من 100 دائماً
   const RATE_C = 414.69;
-  const rate = emps.length ? present.length / emps.length : 0;
+  const rate = emps.length ? Math.max(0, Math.min(1, present.length / emps.length)) : 0;
+  const pct = Math.round(rate * 100);
   const ring = $("#attRing");
-  if (ring) ring.style.strokeDashoffset = RATE_C * (1 - Math.max(0, Math.min(1, rate)));
-  $("#attPct").textContent = Math.round(rate * 100) + "%";
+  if (ring) ring.style.strokeDashoffset = RATE_C * (1 - rate);
+  $("#attPct").textContent = pct + "%";
+  const sub = $("#attSub");
+  if (sub) sub.textContent = emps.length ? `${present.length} من ${emps.length} موظف` : "لا يوجد موظفون";
   $("#lgPresent").textContent = present.length - late.length;
   $("#lgLate").textContent = late.length;
   $("#lgAbsent").textContent = notIn;
@@ -129,8 +135,9 @@ function bindToday() {
   };
   $("#xlsxToday").onclick = () => apiDownload(`/api/report/daily?date=${curDate}`);
   $("#exportToday").onclick = () => {
+    const known = new Set((ST.employees || []).map(e => e.id));
     const rows = [["الموظف", "التاريخ", "الحضور", "الانصراف", "الساعات", "الإضافي (ساعة)", "الحالة"]];
-    dayRows.forEach(r => rows.push([r.empName, r.date,
+    dayRows.filter(r => known.has(r.empId)).forEach(r => rows.push([r.empName, r.date,
       r.checkIn ? timeAr(r.checkIn) : "", r.checkOut ? timeAr(r.checkOut) : "",
       minToHours(r.workedMin), minToHours(overtimeOf(r, ST.settings || {})), statusAr(r)]));
     downloadCSV(`حضور-${curDate}.csv`, rows);

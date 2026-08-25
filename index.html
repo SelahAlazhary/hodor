@@ -392,7 +392,7 @@
               <circle cx="80" cy="80" r="66" id="attRing" class="gauge-bar rate-bar"
                       stroke-dasharray="414.69" stroke-dashoffset="414.69"/>
             </svg>
-            <div class="rate-mid"><b id="attPct">0%</b><small>نسبة الحضور</small></div>
+            <div class="rate-mid"><b id="attPct">0%</b><small>نسبة الحضور</small><small id="attSub" class="rate-sub">—</small></div>
           </div>
           <div class="rate-legend">
             <div><i class="dot d-green"></i> حاضر <b id="lgPresent">0</b></div>
@@ -560,6 +560,40 @@
     <!-- الإعدادات -->
     <div class="pane" id="pane-settings">
       <div class="card">
+        <div class="card-head"><h3><svg class="ico ico-head"><use href="#i-lock"/></svg> كلمة مرور المدير</h3></div>
+        <p class="hint">
+          كلمة المرور مخزَّنة <b>مشفَّرة</b> (SHA-256) في مسار محمي لا تسمح قواعد قاعدة البيانات بقراءته —
+          حتى من يفتح قاعدة البيانات لا يستطيع رؤيتها. لتغييرها أدخل الحالية ثم الجديدة.
+        </p>
+        <form id="passForm" class="form-grid" autocomplete="off">
+          <label class="field"><span>كلمة المرور الحالية</span>
+            <div class="input-icon">
+              <svg class="ico"><use href="#i-lock"/></svg>
+              <input id="curPass" type="password" placeholder="••••••••" required />
+              <button type="button" class="pw-eye" data-pw="curPass"><svg class="ico"><use href="#i-eye"/></svg></button>
+            </div>
+          </label>
+          <label class="field"><span>كلمة المرور الجديدة</span>
+            <div class="input-icon">
+              <svg class="ico"><use href="#i-lock"/></svg>
+              <input id="newPass" type="password" placeholder="4 أحرف على الأقل" required />
+              <button type="button" class="pw-eye" data-pw="newPass"><svg class="ico"><use href="#i-eye"/></svg></button>
+            </div>
+          </label>
+          <label class="field"><span>تأكيد كلمة المرور الجديدة</span>
+            <div class="input-icon">
+              <svg class="ico"><use href="#i-lock"/></svg>
+              <input id="newPass2" type="password" placeholder="أعد كتابتها" required />
+            </div>
+          </label>
+          <div class="form-actions">
+            <button class="btn btn-primary" type="submit"><svg class="ico"><use href="#i-save"/></svg> تغيير كلمة المرور</button>
+          </div>
+        </form>
+        <div id="passMsg" class="alert" hidden></div>
+      </div>
+
+      <div class="card">
         <div class="card-head"><h3><svg class="ico ico-head"><use href="#i-gear"/></svg> إعدادات الدوام</h3></div>
         <form id="setForm" class="form-grid">
           <label class="field"><span>اسم الشركة</span><input id="sCompany" type="text" /></label>
@@ -596,40 +630,6 @@
           </table>
         </div>
         <div id="devEmpty" class="empty"><svg class="ico empty-ico"><use href="#i-mobile"/></svg> لا توجد أجهزة مسجّلة بعد — افتح النظام من جهاز الاستقبال ليظهر هنا.</div>
-      </div>
-
-      <div class="card">
-        <div class="card-head"><h3><svg class="ico ico-head"><use href="#i-lock"/></svg> كلمة مرور المدير</h3></div>
-        <p class="hint">
-          كلمة المرور مخزَّنة <b>مشفَّرة</b> (SHA-256) في مسار محمي لا تسمح قواعد قاعدة البيانات بقراءته —
-          حتى من يفتح قاعدة البيانات لا يستطيع رؤيتها. لتغييرها أدخل الحالية ثم الجديدة.
-        </p>
-        <form id="passForm" class="form-grid" autocomplete="off">
-          <label class="field"><span>كلمة المرور الحالية</span>
-            <div class="input-icon">
-              <svg class="ico"><use href="#i-lock"/></svg>
-              <input id="curPass" type="password" placeholder="••••••••" required />
-              <button type="button" class="pw-eye" data-pw="curPass"><svg class="ico"><use href="#i-eye"/></svg></button>
-            </div>
-          </label>
-          <label class="field"><span>كلمة المرور الجديدة</span>
-            <div class="input-icon">
-              <svg class="ico"><use href="#i-lock"/></svg>
-              <input id="newPass" type="password" placeholder="4 أحرف على الأقل" required />
-              <button type="button" class="pw-eye" data-pw="newPass"><svg class="ico"><use href="#i-eye"/></svg></button>
-            </div>
-          </label>
-          <label class="field"><span>تأكيد كلمة المرور الجديدة</span>
-            <div class="input-icon">
-              <svg class="ico"><use href="#i-lock"/></svg>
-              <input id="newPass2" type="password" placeholder="أعد كتابتها" required />
-            </div>
-          </label>
-          <div class="form-actions">
-            <button class="btn btn-primary" type="submit"><svg class="ico"><use href="#i-save"/></svg> تغيير كلمة المرور</button>
-          </div>
-        </form>
-        <div id="passMsg" class="alert" hidden></div>
       </div>
 
       <div class="card">
