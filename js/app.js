@@ -412,7 +412,8 @@ async function handleBindLink(token) {
       const me = list.find(e => e.id === state.session.empId);
       const dev = deviceId();
       const kiosk = state.settings?.kioskDeviceId === dev;
-      if (me && !kiosk && me.boundDevice && me.boundDevice !== dev) {
+      const known = me && (me.boundDevice === dev || me.pcDevice === dev);
+      if (me && !kiosk && me.boundDevice && !known) {
         toast("تم نقل حسابك إلى جهاز آخر", "err");
         setTimeout(logout, 1500);
       } else if (me && me.active === false) {
