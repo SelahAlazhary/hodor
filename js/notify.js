@@ -1,7 +1,7 @@
 /* ===== الإشعارات على الهاتف ===== */
 import { toast } from "./utils.js";
 
-const ICON = "./icons/icon-192.png";
+const ICON = "./icons/icon-192-sl.png";
 
 export function notifSupported() {
   return "Notification" in window;
