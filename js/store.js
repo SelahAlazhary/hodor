@@ -328,39 +328,6 @@ export function summarize(rows) {
   return s;
 }
 
-/* ================= الرسائل ================= */
-export async function sendMessage(empId, empName, from, text) {
-  const id = push(ref(db, `${PATH.messages}/${empId}`)).key;
-  enqueue(`${PATH.messages}/${empId}/${id}`, {
-    empId, empName, from, text: String(text).trim(),
-    ts: new Date().toISOString(),
-    readByAdmin: from === "admin", readByEmp: from === "employee",
-    createdAt: Date.now()
-  });
-  if (from === "employee")
-    logEvent({ type: "msg", empId, empName, at: new Date().toISOString(), text: String(text).slice(0, 60) });
-}
-const threadList = (obj, empId) => entries(obj).map(([id, v]) => ({ id, empId, ...v }))
-  .sort((a, b) => String(a.ts).localeCompare(String(b.ts)));
-
-export function watchThread(empId, cb) {
-  return watchPath(`${PATH.messages}/${empId}`, o => threadList(o, empId), cb);
-}
-export function watchAllMessages(cb) {
-  return watchPath(PATH.messages, obj => {
-    const all = [];
-    for (const [empId, thread] of entries(obj)) all.push(...threadList(thread, empId));
-    all.sort((a, b) => String(a.ts).localeCompare(String(b.ts)));
-    return all;
-  }, cb);
-}
-export async function markThreadRead(msgs, side) {
-  const field = side === "admin" ? "readByAdmin" : "readByEmp";
-  const other = side === "admin" ? "employee" : "admin";
-  msgs.filter(m => m.from === other && !m[field])
-      .forEach(m => enqueue(`${PATH.messages}/${m.empId}/${m.id}`, { [field]: true }));
-}
-
 /* ================= سجل الأحداث (إشعارات المدير) ================= */
 export function logEvent(ev) {
   const id = push(ref(db, PATH.events)).key;

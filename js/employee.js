@@ -6,23 +6,21 @@ import {
 import { getPublicIP, ipMatches } from "./network.js";
 import { DB_URL } from "./firebase.js";
 import {
-  checkIn, checkOut, markAbsent, watchRecord, getMonth, summarize,
-  sendMessage, watchThread, markThreadRead
+  checkIn, checkOut, markAbsent, watchRecord, getMonth, summarize
 } from "./store.js";
 import { notify, askPermission, buzz } from "./notify.js";
 
 let ST = null, EMP = null;
-let unsubRec = null, unsubChat = null, clockTimer = null;
-let today = null, kioskTarget = null, lastMsgCount = 0, chatOpen = false;
+let unsubRec = null, clockTimer = null;
+let today = null, kioskTarget = null;
 let autoTimer = null, autoBusy = false;
 
 export function disposeEmployee() {
-  unsubRec?.(); unsubChat?.(); clearInterval(clockTimer); clearInterval(autoTimer);
-  unsubRec = unsubChat = clockTimer = autoTimer = null;
+  unsubRec?.(); clearInterval(clockTimer); clearInterval(autoTimer);
+  unsubRec = clockTimer = autoTimer = null;
   window.removeEventListener("online", tryAutoCheckin);
   document.removeEventListener("visibilitychange", onVisible);
   ST = EMP = today = kioskTarget = null;
-  chatOpen = false; lastMsgCount = 0;
   document.removeEventListener("az:employees", onEmployeesChanged);
   document.removeEventListener("az:settings", onSettingsChanged);
 }
@@ -37,7 +35,6 @@ export function initEmployee(state, emp) {
 
   startClock();
   bindActions();
-  bindChat();
   applyKiosk();
   watchToday();
   loadHistory();
@@ -323,45 +320,4 @@ async function armBackgroundAuto() {
         await reg.periodicSync.register("az-auto-checkin", { minInterval: 15 * 60 * 1000 }).catch(() => {});
     }
   } catch {}
-}
-
-/* ---------- الشات مع المدير ---------- */
-function bindChat() {
-  const modal = $("#chatModal");
-  $("#btnChat").onclick = () => { modal.hidden = false; chatOpen = true; $("#empUnread").hidden = true; markRead(); };
-  $("#chatClose").onclick = () => { modal.hidden = true; chatOpen = false; };
-  modal.onclick = e => { if (e.target === modal) { modal.hidden = true; chatOpen = false; } };
-
-  $("#empChatForm").onsubmit = async e => {
-    e.preventDefault();
-    const inp = $("#empChatInput");
-    const txt = inp.value.trim(); if (!txt) return;
-    inp.value = "";
-    await sendMessage(EMP.id, EMP.name, "employee", txt);
-  };
-
-  unsubChat?.();
-  let msgs = [];
-  unsubChat = watchThread(EMP.id, list => {
-    msgs = list;
-    const box = $("#empChatMsgs");
-    box.innerHTML = list.map(m => `
-      <div class="msg ${m.from === "employee" ? "me" : "them"}">
-        ${esc(m.text)}<time>${timeAr(m.ts)}</time>
-      </div>`).join("");
-    box.scrollTop = box.scrollHeight;
-
-    const unread = list.filter(m => m.from === "admin" && !m.readByEmp);
-    if (chatOpen) { markRead(); $("#empUnread").hidden = true; }
-    else if (unread.length) {
-      const b = $("#empUnread"); b.textContent = unread.length; b.hidden = false;
-      if (list.length > lastMsgCount && lastMsgCount) {
-        const last = list[list.length - 1];
-        if (last.from === "admin") notify("💬 رسالة من المدير", last.text, { tag: "chat" });
-      }
-    }
-    lastMsgCount = list.length;
-  });
-
-  function markRead() { markThreadRead(msgs, "employee"); }
 }

@@ -30,7 +30,6 @@
     <symbol id="i-in" viewBox="0 0 24 24"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></symbol>
     <symbol id="i-out" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></symbol>
     <symbol id="i-ban" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><line x1="5.6" y1="5.6" x2="18.4" y2="18.4"/></symbol>
-    <symbol id="i-chat" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></symbol>
     <symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/></symbol>
     <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 14"/></symbol>
     <symbol id="i-users" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></symbol>
@@ -235,11 +234,6 @@
         <span class="action-title">تسجيل غياب</span>
         <span class="action-sub">إبلاغ الإدارة بعدم الحضور</span>
       </button>
-      <button id="btnChat" class="action action-chat">
-        <span class="action-ico"><svg class="ico"><use href="#i-chat"/></svg><span id="empUnread" class="badge" hidden>0</span></span>
-        <span class="action-title">مراسلة المدير</span>
-        <span class="action-sub">محادثة مباشرة</span>
-      </button>
     </div>
 
     <div class="stats-row">
@@ -308,7 +302,6 @@
     <button class="navbtn" data-pane="today"><svg class="ico"><use href="#i-clock"/></svg> حضور اليوم</button>
     <button class="navbtn" data-pane="emps"><svg class="ico"><use href="#i-users"/></svg> الموظفون</button>
     <button class="navbtn" data-pane="report"><svg class="ico"><use href="#i-report"/></svg> التقرير الشهري</button>
-    <button class="navbtn" data-pane="chat"><svg class="ico"><use href="#i-chat"/></svg> الرسائل<span id="admChatBadge" class="badge" hidden>0</span></button>
     <button class="navbtn" data-pane="settings"><svg class="ico"><use href="#i-gear"/></svg> الإعدادات</button>
   </nav>
 
@@ -450,24 +443,6 @@
       </div>
     </div>
 
-    <!-- الرسائل -->
-    <div class="pane" id="pane-chat">
-      <div class="chat-layout">
-        <aside class="card chat-list">
-          <div class="card-head"><h3><svg class="ico ico-head"><use href="#i-chat"/></svg> المحادثات</h3></div>
-          <ul id="convList" class="conv-list"></ul>
-        </aside>
-        <div class="card chat-box">
-          <div class="card-head"><h3 id="chatWith">اختر موظفاً</h3></div>
-          <div id="admChatMsgs" class="msgs"></div>
-          <form id="admChatForm" class="chat-form">
-            <input id="admChatInput" type="text" placeholder="اكتب رسالة…" autocomplete="off" />
-            <button class="btn btn-primary" type="submit"><svg class="ico"><use href="#i-send"/></svg></button>
-          </form>
-        </div>
-      </div>
-    </div>
-
     <!-- الإعدادات -->
     <div class="pane" id="pane-settings">
       <div class="card">
@@ -566,21 +541,6 @@
     </div>
   </main>
 </section>
-
-<!-- ════════ نافذة شات الموظف ════════ -->
-<div id="chatModal" class="modal" hidden>
-  <div class="modal-card">
-    <div class="modal-head">
-      <h3><svg class="ico ico-head"><use href="#i-chat"/></svg> مراسلة المدير</h3>
-      <button id="chatClose" class="icon-btn"><svg class="ico"><use href="#i-close"/></svg></button>
-    </div>
-    <div id="empChatMsgs" class="msgs"></div>
-    <form id="empChatForm" class="chat-form">
-      <input id="empChatInput" type="text" placeholder="اكتب رسالتك…" autocomplete="off" />
-      <button class="btn btn-primary" type="submit"><svg class="ico"><use href="#i-send"/></svg></button>
-    </form>
-  </div>
-</div>
 
 <div id="toast" class="toast" hidden></div>
 

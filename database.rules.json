@@ -6,7 +6,6 @@
     "settings":   { ".read": true, ".write": true },
     "employees":  { ".read": true, ".write": true },
     "attendance": { ".read": true, ".write": true },
-    "messages":   { ".read": true, ".write": true },
     "events":     { ".read": true, ".write": true },
     "devices":    { ".read": true, ".write": true }
   }

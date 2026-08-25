@@ -41,7 +41,6 @@ export const PATH = {
   settings:   "settings/global",
   employees:  "employees",
   attendance: "attendance",   // attendance/{YYYY-MM-DD}/{empId}
-  messages:   "messages",     // messages/{empId}/{msgId}
   events:     "events",
   devices:    "devices"
 };

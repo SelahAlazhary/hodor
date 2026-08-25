@@ -6,25 +6,24 @@ import {
 import {
   watchDay, getMonth, summarize, markAbsent, clearRecord, editTimes,
   addEmployee, updateEmployee, removeEmployee, setRecord,
-  saveSettings, watchEvents, clearEvents, watchDevices, addNetwork, removeNetwork,
-  sendMessage, watchAllMessages, markThreadRead
+  saveSettings, watchEvents, clearEvents, watchDevices, addNetwork, removeNetwork
 } from "./store.js";
 import { notify, askPermission, notifState, buzz } from "./notify.js";
 import { statusTag } from "./employee.js";
 import { getPublicIP } from "./network.js";
 
 let ST = null;
-let unsubDay = null, unsubEvents = null, unsubMsgs = null, unsubDevices = null;
-let dayRows = [], allMsgs = [], devices = [], activeConv = null;
-let seenEvents = new Set(), eventsPrimed = false, msgsPrimed = false, seenMsgs = new Set();
+let unsubDay = null, unsubEvents = null, unsubDevices = null;
+let dayRows = [], devices = [];
+let seenEvents = new Set(), eventsPrimed = false;
 let curDate = dateKey();
 
 export function disposeAdmin() {
-  unsubDay?.(); unsubEvents?.(); unsubMsgs?.(); unsubDevices?.();
-  unsubDay = unsubEvents = unsubMsgs = unsubDevices = null;
-  dayRows = []; allMsgs = []; devices = []; activeConv = null;
-  seenEvents = new Set(); seenMsgs = new Set();
-  eventsPrimed = msgsPrimed = false;
+  unsubDay?.(); unsubEvents?.(); unsubDevices?.();
+  unsubDay = unsubEvents = unsubDevices = null;
+  dayRows = []; devices = [];
+  seenEvents = new Set();
+  eventsPrimed = false;
   document.removeEventListener("az:employees", refreshOnEmployees);
 }
 
@@ -42,12 +41,10 @@ export function initAdmin(state) {
   bindToday();
   bindEmployees();
   bindReport();
-  bindChat();
   bindSettings();
 
   startDay();
   unsubEvents = watchEvents(onEvents);
-  unsubMsgs = watchAllMessages(onMessages);
   unsubDevices = watchDevices(list => { devices = list; paintDevices(); });
 
   document.addEventListener("az:employees", refreshOnEmployees);
@@ -64,7 +61,6 @@ function bindNav() {
     $$(".pane").forEach(p => p.classList.remove("active"));
     $("#pane-" + b.dataset.pane).classList.add("active");
     if (b.dataset.pane === "report") loadReport();
-    if (b.dataset.pane === "chat") { $("#admChatBadge").hidden = true; }
     window.scrollTo(0, 0);
   });
   $("#admBell").onclick = async () => {
@@ -238,7 +234,6 @@ function paintEmployees() {
       <td>${e.active === false ? '<span class="tag t-absent">موقوف</span>' : '<span class="tag t-present">نشط</span>'}</td>
       <td>
         <button class="mini" data-e="edit" data-id="${e.id}"><svg class="ico"><use href="#i-edit"/></svg> تعديل</button>
-        <button class="mini" data-e="chat" data-id="${e.id}"><svg class="ico"><use href="#i-chat"/></svg> رسالة</button>
         <button class="mini danger" data-e="del" data-id="${e.id}"><svg class="ico"><use href="#i-trash"/></svg> حذف</button>
       </td>
     </tr>`).join("");
@@ -256,7 +251,6 @@ function paintEmployees() {
       if (!confirm(`حذف ${emp.name} نهائياً؟ (سجلات الحضور السابقة تبقى محفوظة)`)) return;
       await removeEmployee(emp.id); toast("تم الحذف", "ok");
     }
-    if (b.dataset.e === "chat") { openConv(emp.id); $$(".navbtn").find(x => x.dataset.pane === "chat").click(); }
   });
 }
 
@@ -316,12 +310,11 @@ async function loadReport() {
 function onEvents(list) {
   const ul = $("#feedList");
   ul.innerHTML = list.map(ev => {
-    const ico = { in: "i-in", out: "i-out", abs: "i-ban", msg: "i-chat" }[ev.type] || "i-bell";
-    const cls = { in: "fi-in", out: "fi-out", abs: "fi-abs", msg: "fi-msg" }[ev.type] || "fi-in";
+    const ico = { in: "i-in", out: "i-out", abs: "i-ban" }[ev.type] || "i-bell";
+    const cls = { in: "fi-in", out: "fi-out", abs: "fi-abs" }[ev.type] || "fi-in";
     const txt = ev.type === "in" ? `سجّل حضوره${ev.status === "late" ? " (متأخر)" : ""} الساعة ${timeAr(ev.at)}`
       : ev.type === "out" ? `سجّل انصرافه الساعة ${timeAr(ev.at)} — ${minToHuman(ev.workedMin)}`
-      : ev.type === "abs" ? `تم تسجيل غياب${ev.note ? " — " + esc(ev.note) : ""}`
-      : `أرسل رسالة: ${esc(ev.text || "")}`;
+      : `تم تسجيل غياب${ev.note ? " — " + esc(ev.note) : ""}`;
     return `<li><span class="fi ${cls}"><svg class="ico"><use href="#${ico}"/></svg></span><span><b>${esc(ev.empName || "")}</b> ${txt}<small>${relAr(ev.createdAt || ev.at)}</small></span></li>`;
   }).join("");
   $("#feedEmpty").hidden = list.length > 0;
@@ -346,71 +339,6 @@ $("#clearFeed")?.addEventListener("click", async () => {
   if (!confirm("مسح سجل الأحداث؟")) return;
   await clearEvents(); toast("تم المسح", "ok");
 });
-
-/* ---------- الرسائل ---------- */
-function bindChat() {
-  $("#admChatForm").onsubmit = async e => {
-    e.preventDefault();
-    if (!activeConv) { toast("اختر موظفاً أولاً", "err"); return; }
-    const inp = $("#admChatInput"); const txt = inp.value.trim(); if (!txt) return;
-    inp.value = "";
-    const emp = ST.employees.find(x => x.id === activeConv);
-    await sendMessage(activeConv, emp?.name || "", "admin", txt);
-  };
-}
-
-function onMessages(list) {
-  allMsgs = list;
-  paintConvs();
-  if (activeConv) paintThread();
-
-  const unread = list.filter(m => m.from === "employee" && !m.readByAdmin);
-  const b = $("#admChatBadge");
-  if (unread.length) { b.textContent = unread.length; b.hidden = false; } else b.hidden = true;
-
-  if (!msgsPrimed) { list.forEach(m => seenMsgs.add(m.id)); msgsPrimed = true; return; }
-  for (const m of list) {
-    if (seenMsgs.has(m.id)) continue;
-    seenMsgs.add(m.id);
-    if (m.from === "employee") { buzz(); notify("💬 رسالة من " + (m.empName || "موظف"), m.text, { tag: "adm-msg" }); }
-  }
-}
-
-function paintConvs() {
-  const emps = ST?.employees || [];
-  const ul = $("#convList");
-  const items = emps.map(e => {
-    const th = allMsgs.filter(m => m.empId === e.id);
-    const last = th[th.length - 1];
-    const un = th.filter(m => m.from === "employee" && !m.readByAdmin).length;
-    return { e, last, un, ts: last?.ts || "" };
-  }).sort((a, b) => String(b.ts).localeCompare(String(a.ts)));
-
-  ul.innerHTML = items.map(i => `
-    <li data-c="${i.e.id}" class="${activeConv === i.e.id ? "active" : ""}">
-      <span>${esc(i.e.name)}<small>${i.last ? esc(String(i.last.text).slice(0, 30)) : "لا توجد رسائل"}</small></span>
-      ${i.un ? `<span class="badge">${i.un}</span>` : ""}
-    </li>`).join("");
-  ul.querySelectorAll("li[data-c]").forEach(li => li.onclick = () => openConv(li.dataset.c));
-}
-
-function openConv(empId) {
-  activeConv = empId;
-  const emp = ST.employees.find(e => e.id === empId);
-  $("#chatWith").textContent = emp ? `محادثة: ${emp.name}` : "محادثة";
-  paintConvs(); paintThread();
-  markThreadRead(allMsgs.filter(m => m.empId === empId), "admin");
-}
-
-function paintThread() {
-  const box = $("#admChatMsgs");
-  const th = allMsgs.filter(m => m.empId === activeConv);
-  box.innerHTML = th.map(m => `
-    <div class="msg ${m.from === "admin" ? "me" : "them"}">
-      ${esc(m.text)}<time>${timeAr(m.ts)}</time>
-    </div>`).join("") || `<div class="empty">لا توجد رسائل بعد</div>`;
-  box.scrollTop = box.scrollHeight;
-}
 
 /* ---------- الإعدادات ---------- */
 function fillSettings() {
