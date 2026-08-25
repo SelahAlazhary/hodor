@@ -1,5 +1,5 @@
 /* ===== Service Worker — تشغيل بدون إنترنت + الإشعارات ===== */
-const VERSION = "azhari-attendance-v5";
+const VERSION = "azhari-attendance-v6";
 const CFG_CACHE = "azhari-config";   // كاش دائم لإعدادات الحضور التلقائي
 const SHELL = [
   "./", "./index.html", "./manifest.webmanifest",
@@ -105,7 +105,8 @@ self.addEventListener("message", e => {
 });
 
 self.addEventListener("periodicsync", e => {
-  if (e.tag === "az-auto-checkin") e.waitUntil(Promise.all([autoCheckin(), checkoutDue()]));
+  if (e.tag === "az-auto-checkin")
+    e.waitUntil(Promise.all([autoCheckin(), checkoutDue(), leftNetwork()]));
 });
 self.addEventListener("sync", e => {
   if (e.tag === "az-auto-checkin") e.waitUntil(autoCheckin());
@@ -142,6 +143,56 @@ const ipHit = (ip, nets) => nets.some(n => {
   const v = String(n?.ip || "").trim();
   return v && (v.endsWith(".") ? ip.startsWith(v) : ip === v);
 });
+
+/** ينبّه إذا غادر الموظف شبكة الشركة دون تسجيل انصراف (يعمل والتطبيق مغلق) */
+async function leftNetwork() {
+  try {
+    const c = await caches.open(CFG_CACHE);
+    const res = await c.match(new Request(CFG_KEY));
+    if (!res) return;
+    const cfg = await res.json();
+    if (!cfg?.dbUrl || !cfg?.empId) return;
+
+    const S = await (await fetch(`${cfg.dbUrl}/settings/global.json`, { cache: "no-store" })).json() || {};
+    const nets = Object.values(S.networks || {});
+    if (!nets.length) return;
+
+    const ms = Date.now() + (Number(cfg.clockOffset) || 0);
+    const now = cairo(ms);
+    const dk = `${now.getFullYear()}-${p2(now.getMonth() + 1)}-${p2(now.getDate())}`;
+    const rec = await (await fetch(`${cfg.dbUrl}/attendance/${dk}/${cfg.empId}.json`, { cache: "no-store" })).json();
+    if (!rec || !rec.checkIn || rec.checkOut || rec.status === "absent") return;
+
+    const ip = await publicIP();
+    if (!ip) return;
+
+    const markReq = new Request("/__az_leftnet");
+    const mark = await c.match(markReq);
+    const prev = mark ? await mark.json() : null;
+
+    if (ipHit(ip, nets)) {                       // ما زال داخل الشبكة
+      if (prev) await c.delete(markReq);
+      return;
+    }
+    if (prev && prev.date === dk && prev.done) return;
+    await c.put(markReq, new Response(JSON.stringify({ date: dk, done: true }),
+      { headers: { "content-type": "application/json" } }));
+
+    await fetch(`${cfg.dbUrl}/events.json`, {
+      method: "POST",
+      body: JSON.stringify({ type: "leftnet", empId: cfg.empId, empName: cfg.empName,
+                             date: dk, at: new Date(ms).toISOString(),
+                             checkIn: rec.checkIn, createdAt: ms })
+    });
+
+    await self.registration.showNotification("⚠️ لم تسجّل انصرافك", {
+      body: `${cfg.empName}\nخرجت من شبكة الشركة ولم تسجّل انصرافك.\nسجّل الانصراف الآن ليُحتسب وقتك بدقة.`,
+      icon: "./icons/icon-192.png", badge: "./icons/icon-192.png",
+      dir: "rtl", lang: "ar", tag: "left-net", requireInteraction: true,
+      vibrate: [200, 90, 200]
+    });
+  } catch (e) { /* تجاهل */ }
+}
 
 /** تنبيه الموظف بانتهاء دوامه ليسجّل انصرافه بنفسه (يعمل والتطبيق مغلق) */
 async function checkoutDue() {

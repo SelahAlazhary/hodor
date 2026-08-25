@@ -437,10 +437,11 @@ async function loadReport() {
 function onEvents(list) {
   const ul = $("#feedList");
   ul.innerHTML = list.map(ev => {
-    const ico = { in: "i-in", out: "i-out", abs: "i-ban" }[ev.type] || "i-bell";
-    const cls = { in: "fi-in", out: "fi-out", abs: "fi-abs" }[ev.type] || "fi-in";
+    const ico = { in: "i-in", out: "i-out", abs: "i-ban", leftnet: "i-wifi-off" }[ev.type] || "i-bell";
+    const cls = { in: "fi-in", out: "fi-out", abs: "fi-abs", leftnet: "fi-warn" }[ev.type] || "fi-in";
     const txt = ev.type === "in" ? `سجّل حضوره${ev.status === "late" ? " (متأخر)" : ""} الساعة ${timeAr(ev.at)}`
       : ev.type === "out" ? `سجّل انصرافه الساعة ${timeAr(ev.at)} — ${minToHuman(ev.workedMin)}`
+      : ev.type === "leftnet" ? `<b class="warn-txt">خرج من شبكة الشركة دون تسجيل انصراف</b> — الساعة ${timeAr(ev.at)}`
       : `تم تسجيل غياب${ev.note ? " — " + esc(ev.note) : ""}`;
     return `<li><span class="fi ${cls}"><svg class="ico"><use href="#${ico}"/></svg></span><span><b>${esc(ev.empName || "")}</b> ${txt}<small>${relAr(ev.createdAt || ev.at)}</small></span></li>`;
   }).join("");
@@ -455,6 +456,10 @@ function onEvents(list) {
     if (ev.type === "in") notify("🟢 حضور جديد", `${ev.empName} سجّل حضوره الساعة ${timeAr(ev.at)}${ev.status === "late" ? " (متأخر)" : ""}`, { tag: "adm-" + ev.id });
     if (ev.type === "out") notify("🔴 انصراف", `${ev.empName} انصرف الساعة ${timeAr(ev.at)} — ${minToHuman(ev.workedMin)}`, { tag: "adm-" + ev.id });
     if (ev.type === "abs") notify("🚫 غياب", `${ev.empName} — ${dateAr(ev.date)}${ev.note ? "\n" + ev.note : ""}`, { tag: "adm-" + ev.id });
+    if (ev.type === "leftnet") notify("⚠️ خروج بلا انصراف",
+      `${ev.empName} خرج من شبكة الشركة الساعة ${timeAr(ev.at)} ولم يسجّل انصرافه` +
+      (ev.checkIn ? `\nحضوره مسجَّل منذ ${timeAr(ev.checkIn)}` : ""),
+      { tag: "adm-" + ev.id, sticky: true });
   }
   if (newCount) {
     buzz();

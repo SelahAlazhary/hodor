@@ -2,13 +2,13 @@
 import {
   $, $$, esc, toast, fullDateAr, dateKey, monthKey, dateAr, dayAr,
   timeAr, minToHuman, minToHours, toDate, deviceId, hhmmToMin, now, nowMs, clockParts, clockOffset,
-  initials, LS
+  initials, instant, LS
 } from "./utils.js";
 import { getPublicIP, ipMatches } from "./network.js";
 import { DB_URL } from "./firebase.js";
 import {
   checkIn, checkOut, markAbsent, watchRecord, getMonth, summarize,
-  requiredMinOf, overtimeOf
+  requiredMinOf, overtimeOf, logEvent
 } from "./store.js";
 import { notify, askPermission, buzz } from "./notify.js";
 
@@ -16,6 +16,7 @@ let ST = null, EMP = null;
 let unsubRec = null, clockTimer = null;
 let today = null, kioskTarget = null;
 let autoTimer = null, autoBusy = false;
+let netWasOn = null, netMisses = 0;
 
 export function disposeEmployee() {
   unsubRec?.(); clearInterval(clockTimer); clearInterval(autoTimer);
@@ -50,17 +51,21 @@ export function initEmployee(state, emp) {
   // الحضور التلقائي عند الاتصال بشبكة الشركة
   paintAutoBar("", "جارٍ الفحص…");
   tryAutoCheckin();
+  checkNetworkExit();
   armBackgroundAuto();
-  autoTimer = setInterval(tryAutoCheckin, 4 * 60 * 1000);
+  autoTimer = setInterval(() => { tryAutoCheckin(); checkNetworkExit(); }, 4 * 60 * 1000);
   window.addEventListener("online", onBackOnline);
   document.addEventListener("visibilitychange", onVisible);
 }
 
-function onVisible() { if (document.visibilityState === "visible") tryAutoCheckin(); }
+function onVisible() {
+  if (document.visibilityState !== "visible") return;
+  tryAutoCheckin(); checkNetworkExit();
+}
 
 /** عند عودة الاتصال: فحص فوري + تسجيل مزامنة خلفية تعمل والتطبيق مغلق */
 async function onBackOnline() {
-  tryAutoCheckin();
+  tryAutoCheckin(); checkNetworkExit();
   try {
     const reg = await navigator.serviceWorker?.ready;
     if (reg && "sync" in reg) await reg.sync.register("az-auto-checkin");
@@ -380,6 +385,44 @@ function paintAutoBar(state, msg) {
   const el = $("#autoState");
   el.className = "auto-state" + (state ? " " + state : "");
   el.textContent = msg;
+}
+
+/** ═══ رصد خروج الموظف من شبكة الشركة قبل تسجيل الانصراف ═══
+ *  عند مغادرته المقر يتغيّر عنوان الشبكة، فيصله تنبيه ويصل المدير إشعار.
+ *  نشترط قراءتين متتاليتين خارج الشبكة حتى لا ينبّه لانقطاع لحظي.  */
+async function checkNetworkExit() {
+  const s = ST?.settings || {};
+  const nets = autoNets();
+  if (!nets.length || kioskTarget) return;
+  if (!EMP || !today || !today.checkIn || today.checkOut || today.status === "absent") return;
+  if (!navigator.onLine) return;                  // لا اتصال ⇒ لا نستطيع الحكم
+
+  // إن سُجّل حضوره عبر الشبكة فهو كان عليها بالتأكيد
+  if (netWasOn === null && String(today.source || "").startsWith("auto-wifi")) netWasOn = true;
+
+  const ip = await getPublicIP();
+  if (!ip) return;
+
+  const key = `az_leftnet_${EMP.id}_${dateKey()}`;
+  if (ipMatches(ip, nets)) {                      // ما زال داخل الشبكة
+    netWasOn = true; netMisses = 0;
+    LS.del(key);                                  // نعيد التسليح لو خرج لاحقاً
+    return;
+  }
+  if (netWasOn !== true) return;                  // لم نتأكد أصلاً أنه كان عليها
+  if (++netMisses < 2) return;                    // تأكيد بقراءتين
+  if (LS.get(key)) return;                        // نُبّه مسبقاً اليوم
+  LS.set(key, 1);
+
+  const since = timeAr(today.checkIn);
+  buzz([200, 90, 200]);
+  toast("خرجت من شبكة الشركة ولم تسجّل انصرافك", "err");
+  notify("⚠️ لم تسجّل انصرافك",
+    `${EMP.name}\nخرجت من شبكة الشركة ولم تسجّل انصرافك.\nحضورك مسجَّل منذ ${since} — سجّل الانصراف الآن ليُحتسب وقتك بدقة.`,
+    { tag: "left-net", sticky: true });
+
+  logEvent({ type: "leftnet", empId: EMP.id, empName: EMP.name,
+             date: dateKey(), at: instant().toISOString(), checkIn: today.checkIn });
 }
 
 /** يفحص شبكة الجهاز ويسجّل الحضور تلقائياً إن كانت شبكة الشركة */

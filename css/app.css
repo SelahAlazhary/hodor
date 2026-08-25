@@ -715,3 +715,5 @@ code{font-size:11px;background:var(--line-2);padding:2px 6px;border-radius:6px;d
 .auto-only b{display:block;font-size:13.5px;color:var(--green-800)}
 .auto-only>div>span{font-size:11.5px;color:var(--muted)}
 .warn-line{display:block;margin-top:8px;color:var(--amber);font-weight:700;font-size:12px;line-height:1.7}
+.fi-warn{background:var(--amber-100);color:var(--amber)}
+.warn-txt{color:var(--amber)}
