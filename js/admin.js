@@ -7,7 +7,8 @@ import {
 import {
   watchDay, getMonth, summarize, markAbsent, clearRecord, editTimes, overtimeOf, requiredMinOf,
   addEmployee, updateEmployee, removeEmployee, setRecord, releaseDevice,
-  saveSettings, watchEvents, clearEvents, watchDevices, addNetwork, removeNetwork, logEvent
+  saveSettings, watchEvents, clearEvents, watchDevices, addNetwork, removeNetwork, logEvent,
+  removeDeviceEntry
 } from "./store.js";
 import { notify, askPermission, notifState, buzz } from "./notify.js";
 import { statusTag } from "./employee.js";
@@ -599,11 +600,18 @@ function paintDevices() {
       <td><code>${esc(d.id)}</code></td>
       <td>${s.kioskDeviceId === d.id
         ? `<span class="tag t-present">معتمد</span> <button class="mini danger" data-d="off" data-id="${d.id}"><svg class="ico"><use href="#i-close"/></svg> إلغاء</button>`
-        : `<button class="mini ok" data-d="on" data-id="${d.id}" data-name="${esc(d.name || "")}"><svg class="ico"><use href="#i-check"/></svg> اعتماد</button>`}</td>
+        : `<button class="mini ok" data-d="on" data-id="${d.id}" data-name="${esc(d.name || "")}"><svg class="ico"><use href="#i-check"/></svg> اعتماد</button>
+           <button class="mini danger" data-d="rm" data-id="${d.id}"><svg class="ico"><use href="#i-trash"/></svg> حذف</button>`}</td>
     </tr>`).join("");
   $("#devEmpty").hidden = devices.length > 0;
 
   tb.querySelectorAll("button[data-d]").forEach(b => b.onclick = async () => {
+    if (b.dataset.d === "rm") {
+      if (!confirm("حذف هذا الجهاز من القائمة؟ سيظهر من جديد إذا فُتح النظام منه مرة أخرى.")) return;
+      await removeDeviceEntry(b.dataset.id);
+      toast("تم حذف الجهاز", "ok");
+      return;
+    }
     if (b.dataset.d === "on") {
       await saveSettings({ kioskDeviceId: b.dataset.id, kioskDeviceName: b.dataset.name });
       toast("تم اعتماد الجهاز لتسجيل الحضور ✅", "ok");

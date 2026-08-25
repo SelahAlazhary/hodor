@@ -433,6 +433,11 @@ export async function registerDevice() {
   enqueue(`${PATH.devices}/${id}`, { name, ua: ua.slice(0, 160), lastSeen: nowMs() });
   return id;
 }
+/** يحذف جهازاً من قائمة الأجهزة المسجّلة */
+export async function removeDeviceEntry(id) {
+  enqueue(`${PATH.devices}/${id}`, null);
+}
+
 export function watchDevices(cb) {
   return watchPath(PATH.devices, obj => entries(obj).map(([id, v]) => ({ id, ...v }))
     .sort((a, b) => Number(b.lastSeen || 0) - Number(a.lastSeen || 0)), cb);

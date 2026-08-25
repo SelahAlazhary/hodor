@@ -65,9 +65,9 @@ def db_get(path: str, default=None):
 
 
 def db_write(path: str, payload, method: str = "PATCH"):
-    """كتابة إلى قاعدة البيانات اللحظية."""
+    """كتابة أو حذف في قاعدة البيانات اللحظية."""
     url = f"{DB_URL}/{path.strip('/')}.json"
-    body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+    body = None if method == "DELETE" else json.dumps(payload, ensure_ascii=False).encode("utf-8")
     req = urllib.request.Request(
         url, data=body, method=method,
         headers={"Content-Type": "application/json; charset=utf-8"},
@@ -459,6 +459,41 @@ def auto_absent(
             "marked": len(marked), "employees": marked, "dry": dry}
 
 
+@app.get("/api/cleanup")
+def cleanup(dry: bool = Query(default=True, description="معاينة بدون حذف")):
+    """ينظّف البيانات غير الحقيقية: سجلات حضور لموظفين محذوفين، وأحداث يتيمة."""
+    employees = db_get("employees", {}) or {}
+    valid = set(employees.keys())
+
+    orphan_att, orphan_ev = [], 0
+    attendance = db_get("attendance", {}) or {}
+    for day, recs in (attendance or {}).items():
+        if not isinstance(recs, dict):
+            continue
+        for eid, rec in recs.items():
+            if eid not in valid:
+                orphan_att.append({"date": day, "name": rec.get("empName"), "empId": eid})
+                if not dry:
+                    db_write(f"attendance/{day}/{eid}", None, method="DELETE")
+
+    events = db_get("events", {}) or {}
+    for key, ev in (events or {}).items():
+        if ev.get("empId") and ev["empId"] not in valid:
+            orphan_ev += 1
+            if not dry:
+                db_write(f"events/{key}", None, method="DELETE")
+
+    return {
+        "ok": True,
+        "dry": dry,
+        "employees": len(valid),
+        "orphanAttendance": len(orphan_att),
+        "orphanEvents": orphan_ev,
+        "details": orphan_att[:50],
+        "hint": "أضف ?dry=false للحذف الفعلي",
+    }
+
+
 @app.get("/api")
 def index():
     return JSONResponse({
@@ -470,5 +505,6 @@ def index():
             "/api/report/daily?date=YYYY-MM-DD": "تقرير Excel يومي",
             "/api/payroll?month=YYYY-MM&rate=50": "كشف رواتب Excel",
             "/api/auto-absent": "تسجيل الغائبين تلقائياً",
+            "/api/cleanup": "تنظيف السجلات اليتيمة",
         },
     })
