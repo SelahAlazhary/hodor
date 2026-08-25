@@ -279,6 +279,14 @@
       <div id="statusPill" class="pill pill-idle">لم يتم تسجيل الحضور بعد</div>
     </div>
 
+    <div id="autoOnlyNote" class="auto-only" hidden>
+      <span class="auto-ico"><svg class="ico"><use href="#i-wifi"/></svg></span>
+      <div>
+        <b>حضورك يُسجَّل تلقائياً</b>
+        <span id="autoOnlyMsg">بمجرد اتصال هاتفك بشبكة الشركة — لا حاجة لأي ضغطة.</span>
+      </div>
+    </div>
+
     <div class="action-grid">
       <button id="btnCheckIn" class="action action-in">
         <span class="action-ico"><svg class="ico"><use href="#i-in"/></svg></span>
@@ -629,6 +637,22 @@
           </table>
         </div>
         <div id="devEmpty" class="empty"><svg class="ico empty-ico"><use href="#i-mobile"/></svg> لا توجد أجهزة مسجّلة بعد — افتح النظام من جهاز الاستقبال ليظهر هنا.</div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h3><svg class="ico ico-head"><use href="#i-in"/></svg> طريقة تسجيل الحضور</h3></div>
+        <label class="switch-row">
+          <input type="checkbox" id="sManualCheckin" />
+          <span class="switch"></span>
+          <b>السماح للموظف بتسجيل حضوره يدوياً بالضغط على زر</b>
+        </label>
+        <p class="hint">
+          <b>موصى به: مُغلق.</b> عند إغلاقه يختفي زر «تسجيل حضور» من شاشة الموظف نهائياً،
+          فلا يستطيع تسجيل حضوره وهو خارج الشركة. يبقى الحضور مُسجَّلاً بثلاث طرق موثوقة:
+          <b>تلقائياً عند اتصاله بشبكة الشركة</b>، أو من <b>جهاز الاستقبال (الكشك)</b>،
+          أو يدوياً منك عبر زر «حضر» في <b>حضور اليوم</b>.
+          <span id="manualWarn" class="warn-line" hidden></span>
+        </p>
       </div>
 
       <div class="card">

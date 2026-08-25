@@ -152,9 +152,24 @@ function applyKiosk() {
     kioskTarget = null;
   }
 
+  // زر تسجيل الحضور يظهر فقط لجهاز الكشك أو إن سمح المدير بالتسجيل اليدوي
+  const manualAllowed = s.manualCheckin === true || isKiosk;
+  const btnIn = $("#btnCheckIn");
+  btnIn.hidden = !manualAllowed;
+  document.querySelector(".action-grid")?.classList.toggle("no-in", !manualAllowed);
+
+  const note = $("#autoOnlyNote");
+  if (note) {
+    note.hidden = manualAllowed;
+    const msg = $("#autoOnlyMsg");
+    if (msg) msg.textContent = s.autoCheckin
+      ? "بمجرد اتصال هاتفك بشبكة الشركة — لا حاجة لأي ضغطة."
+      : "يسجّله لك جهاز الاستقبال أو الإدارة — راجع الإدارة إن لم يظهر حضورك.";
+  }
+
   // منع التسجيل إن كان الوضع "جهاز محدد فقط" وهذا ليس الجهاز المعتمد
   const blocked = s.checkinMode === "kiosk" && !isKiosk;
-  $("#btnCheckIn").disabled = blocked;
+  btnIn.disabled = blocked;
   $("#btnCheckOut").disabled = blocked;
   if (blocked) $("#statusPill").textContent = "التسجيل متاح فقط من جهاز الاستقبال المعتمد";
 }

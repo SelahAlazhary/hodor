@@ -478,6 +478,8 @@ function fillSettings() {
   const mode = s.checkinMode || "self";
   $$('input[name="mode"]').forEach(r => r.checked = r.value === mode);
 
+  $("#sManualCheckin").checked = s.manualCheckin === true;
+  paintManualWarn();
   $("#sForceInstall").checked = s.forceInstall !== false;
   $("#sAuto").checked = !!s.autoCheckin;
   $("#sAutoFrom").value = s.autoWindowStart || "06:00";
@@ -486,8 +488,21 @@ function fillSettings() {
   paintNetworks();
 }
 
+/** يحذّر المدير إن أغلق التسجيل اليدوي بلا بديل مفعّل */
+function paintManualWarn() {
+  const el = $("#manualWarn"); if (!el) return;
+  const s = ST?.settings || {};
+  const nets = Object.keys(s.networks || {}).length;
+  const risky = s.manualCheckin !== true && !(s.autoCheckin && nets) && !s.kioskDeviceId;
+  el.hidden = !risky;
+  el.textContent = risky
+    ? "⚠ تنبيه: التسجيل اليدوي مغلق ولا يوجد حضور تلقائي ولا جهاز كشك — لن يستطيع الموظفون تسجيل حضورهم إلا بتسجيلك اليدوي من «حضور اليوم»."
+    : "";
+}
+
 /* ---------- شبكات الشركة للحضور التلقائي ---------- */
 function paintNetworks() {
+  paintManualWarn();
   const nets = Object.values(ST?.settings?.networks || {});
   const tb = $("#netTable tbody");
   if (!tb) return;
@@ -549,6 +564,13 @@ function bindSettings() {
   };
 
   $("#refreshDev").onclick = () => paintDevices();
+
+  $("#sManualCheckin").onchange = async e => {
+    await saveSettings({ manualCheckin: e.target.checked });
+    toast(e.target.checked
+      ? "ظهر زر تسجيل الحضور للموظفين"
+      : "أُخفي زر تسجيل الحضور — يُسجَّل الحضور تلقائياً أو من الإدارة", "ok");
+  };
 
   $("#sForceInstall").onchange = async e => {
     await saveSettings({ forceInstall: e.target.checked });
