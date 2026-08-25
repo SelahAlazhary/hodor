@@ -123,6 +123,7 @@ function bindToday() {
     for (const e of emps) await markAbsent(e, curDate, "تسجيل جماعي", "admin");
     toast(`تم تسجيل غياب ${emps.length} موظف`, "ok");
   };
+  $("#xlsxToday").onclick = () => apiDownload(`/api/report/daily?date=${curDate}`);
   $("#exportToday").onclick = () => {
     const rows = [["الموظف", "التاريخ", "الحضور", "الانصراف", "الساعات", "الإضافي (ساعة)", "الحالة"]];
     dayRows.forEach(r => rows.push([r.empName, r.date,
@@ -130,6 +131,28 @@ function bindToday() {
       minToHours(r.workedMin), minToHours(overtimeOf(r, ST.settings || {})), statusAr(r)]));
     downloadCSV(`حضور-${curDate}.csv`, rows);
   };
+}
+
+/** تنزيل ملف من خدمة بايثون مع رسائل واضحة عند التعذّر */
+async function apiDownload(path) {
+  toast("جارٍ تجهيز الملف…");
+  try {
+    const res = await fetch(path, { cache: "no-store" });
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    const blob = await res.blob();
+    if (blob.size < 500) throw new Error("ملف فارغ");
+    const cd = res.headers.get("content-disposition") || "";
+    const m = decodeURIComponent((cd.match(/filename\*=UTF-8''([^;]+)/) || [])[1] || "");
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = m || "report.xlsx";
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+    toast("تم تنزيل الملف ✅", "ok");
+  } catch (e) {
+    toast("تعذّر تجهيز الملف — خدمة التقارير غير متاحة الآن", "err");
+    console.warn("apiDownload", path, e);
+  }
 }
 
 const statusAr = r => r.status === "absent" ? "غياب" : r.checkOut ? "انصرف" : r.status === "late" ? "متأخر" : r.checkIn ? "حاضر" : "—";
@@ -315,6 +338,17 @@ function bindReport() {
     downloadCSV(`تقرير-${mk}.csv`, rows);
   };
   $("#printRep").onclick = () => window.print();
+
+  // تقارير Excel الاحترافية من خدمة بايثون
+  $("#xlsxRep").onclick = () => apiDownload(`/api/report?month=${$("#repMonth").value || monthKey()}`);
+  $("#xlsxPay").onclick = () => {
+    const rate = prompt("أجر الساعة بالجنيه (يُستخدم لمن ليس له أجر محفوظ):", "50");
+    if (rate === null) return;
+    const mult = prompt("مضاعف الساعة الإضافية:", "1.5");
+    if (mult === null) return;
+    apiDownload(`/api/payroll?month=${$("#repMonth").value || monthKey()}` +
+                `&rate=${encodeURIComponent(rate)}&ot_multiplier=${encodeURIComponent(mult)}`);
+  };
   $("#repDetailClose").onclick = () => { $("#repDetailCard").hidden = true; };
 }
 
