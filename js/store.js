@@ -8,7 +8,7 @@ import {
   db, PATH, ref, get, set, update, remove, push,
   onValue, query, orderByKey, startAt, endAt, limitToLast
 } from "./firebase.js";
-import { LS, dateKey, monthRange, hhmmToMin, toDate, normName, deviceId,
+import { LS, dateKey, monthRange, hhmmToMin, toDate, normName, samePhone, deviceId,
          now, nowMs, instant, setClockOffset } from "./utils.js";
 
 /* ---------------- الإعدادات الافتراضية ---------------- */
@@ -206,6 +206,34 @@ export function findEmployeeByName(list, typed) {
       || list.find(e => normName(e.name).startsWith(k))
       || list.find(e => normName(e.name).includes(k))
       || null;
+}
+
+/** يبحث عن الموظف بالاسم ورقم الهاتف معاً */
+export function findEmployee(list, typedName, typedPhone) {
+  const k = normName(typedName);
+  if (!k) return { emp: null, reason: "name" };
+  const byName = list.filter(e => normName(e.name) === k)
+    .concat(list.filter(e => normName(e.name) !== k && normName(e.name).startsWith(k)))
+    .concat(list.filter(e => normName(e.name) !== k && !normName(e.name).startsWith(k) && normName(e.name).includes(k)));
+  if (!byName.length) return { emp: null, reason: "name" };
+  const match = byName.find(e => samePhone(e.phone, typedPhone));
+  return match ? { emp: match, reason: null } : { emp: null, reason: "phone" };
+}
+
+/* ---------------- ربط الحساب بجهاز واحد ---------------- */
+/** يربط حساب الموظف بهذا الجهاز */
+export async function bindDevice(empId, devId = deviceId()) {
+  enqueue(`${PATH.employees}/${empId}`, {
+    boundDevice: devId,
+    boundAt: nowMs(),
+    boundUA: String(navigator.userAgent || "").slice(0, 120)
+  });
+}
+/** يحرّر الحساب ليتمكن الموظف من استخدام هاتف جديد */
+export async function releaseDevice(empId) {
+  enqueue(`${PATH.employees}/${empId}`, {
+    boundDevice: null, boundAt: null, boundUA: null, releasedAt: nowMs()
+  });
 }
 
 /* ================= الحضور ================= */

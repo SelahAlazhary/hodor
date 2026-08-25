@@ -183,6 +183,29 @@ export function normName(s) {
     .replace(/\s+/g, " ").trim().toLowerCase();
 }
 
+/** تطبيع رقم الهاتف: يحوّل الأرقام العربية ويحذف كل ما عدا الأرقام */
+export function normPhone(v) {
+  return String(v || "")
+    .replace(/[٠-٩]/g, d => "٠١٢٣٤٥٦٧٨٩".indexOf(d))
+    .replace(/[۰-۹]/g, d => "۰۱۲۳۴۵۶۷۸۹".indexOf(d))
+    .replace(/\D/g, "");
+}
+/** يقارن رقمين مع تجاهل مفتاح الدولة وأصفار البداية */
+export function samePhone(a, b) {
+  const x = normPhone(a), y = normPhone(b);
+  if (!x || !y) return false;
+  if (x === y) return true;
+  const tail = n => n.slice(-9);          // آخر 9 أرقام تكفي للمطابقة
+  return tail(x) === tail(y);
+}
+
+/** أول حرفين من الاسم لصورة الحساب */
+export function initials(name) {
+  const parts = String(name || "").trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return "؟";
+  return parts.length === 1 ? parts[0].slice(0, 1) : parts[0][0] + parts[1][0];
+}
+
 /* ---------- تصدير CSV ---------- */
 export function downloadCSV(filename, rows) {
   const csv = rows.map(r => r.map(c => {

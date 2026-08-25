@@ -1,11 +1,12 @@
 /* ===== لوحة تحكم المدير ===== */
 import {
   $, $$, esc, toast, dateKey, monthKey, dateAr, dayAr, fullDateAr, timeAr,
-  minToHuman, minToHours, relAr, toDate, downloadCSV, hhmmToMin, now, nowMs, zoned, msFromCairo, LS
+  minToHuman, minToHours, relAr, toDate, downloadCSV, hhmmToMin, now, nowMs, zoned, msFromCairo,
+  samePhone, LS
 } from "./utils.js";
 import {
   watchDay, getMonth, summarize, markAbsent, clearRecord, editTimes, overtimeOf, requiredMinOf,
-  addEmployee, updateEmployee, removeEmployee, setRecord,
+  addEmployee, updateEmployee, removeEmployee, setRecord, releaseDevice,
   saveSettings, watchEvents, clearEvents, watchDevices, addNetwork, removeNetwork, logEvent
 } from "./store.js";
 import { notify, askPermission, notifState, buzz } from "./notify.js";
@@ -271,6 +272,9 @@ function bindEmployees() {
       active: $("#fActive").value === "1"
     };
     if (!data.name) return;
+    if (!data.phone) { toast("رقم الهاتف مطلوب — يستخدمه الموظف للدخول", "err"); return; }
+    const dup = (ST.employees || []).find(x => x.id !== id && samePhone(x.phone, data.phone));
+    if (dup) { toast(`رقم الهاتف مستخدم بالفعل للموظف ${dup.name}`, "err"); return; }
     try {
       if (id) { await updateEmployee(id, data); toast("تم تحديث بيانات الموظف", "ok"); }
       else { await addEmployee(data); toast("تمت إضافة الموظف ✅", "ok"); }
@@ -296,8 +300,12 @@ function paintEmployees() {
       <td>${esc(e.job || "—")}</td>
       <td>${esc(e.phone || "—")}</td>
       <td>${e.workStart || "—"} → ${e.workEnd || "—"}</td>
+      <td>${e.boundDevice
+        ? `<span class="tag t-present">مرتبط</span><br><span class="sub">${relAr(e.boundAt)}</span>`
+        : '<span class="tag t-off">غير مرتبط</span>'}</td>
       <td>${e.active === false ? '<span class="tag t-absent">موقوف</span>' : '<span class="tag t-present">نشط</span>'}</td>
       <td>
+        ${e.boundDevice ? `<button class="mini ok" data-e="free" data-id="${e.id}"><svg class="ico"><use href="#i-mobile"/></svg> هاتف جديد</button>` : ""}
         <button class="mini" data-e="edit" data-id="${e.id}"><svg class="ico"><use href="#i-edit"/></svg> تعديل</button>
         <button class="mini danger" data-e="del" data-id="${e.id}"><svg class="ico"><use href="#i-trash"/></svg> حذف</button>
       </td>
@@ -311,6 +319,13 @@ function paintEmployees() {
       $("#fEnd").value = emp.workEnd || ""; $("#fActive").value = emp.active === false ? "0" : "1";
       $("#empFormBtnLabel").textContent = "تحديث";
       window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+    if (b.dataset.e === "free") {
+      if (!confirm(`السماح لـ ${emp.name} بتسجيل الدخول من هاتف جديد؟\n` +
+                   `سيُفصل حسابه عن الهاتف الحالي، وأول هاتف يدخل منه سيصبح هاتفه المعتمد.`)) return;
+      await releaseDevice(emp.id);
+      toast(`تم تحرير حساب ${emp.name} — يمكنه الدخول من هاتف جديد`, "ok");
+      return;
     }
     if (b.dataset.e === "del") {
       if (!confirm(`حذف ${emp.name} نهائياً؟ (سجلات الحضور السابقة تبقى محفوظة)`)) return;

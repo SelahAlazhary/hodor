@@ -1,7 +1,7 @@
 /* ===== نقطة البداية: الإقلاع، الدخول، التوجيه، تثبيت التطبيق ===== */
-import { $, $$, LS, toast, esc, normName } from "./utils.js";
-import { getSettings, watchSettings, watchEmployees, findEmployeeByName, registerDevice,
-         watchConnection, watchServerClock, flush, pendingCount } from "./store.js";
+import { $, $$, LS, toast, esc, normName, deviceId, initials } from "./utils.js";
+import { getSettings, watchSettings, watchEmployees, findEmployee, registerDevice,
+         bindDevice, watchConnection, watchServerClock, flush, pendingCount } from "./store.js";
 import { askPermission } from "./notify.js";
 import { verifyAdmin } from "./auth.js";
 import { initEmployee, disposeEmployee } from "./employee.js";
@@ -80,8 +80,29 @@ export function logout() {
   $("#admPassInput").value = "";
   go("login");
 }
-$("#empLogout")?.addEventListener("click", () => { if (confirm("تسجيل الخروج من التطبيق؟")) logout(); });
 $("#admLogout")?.addEventListener("click", () => { if (confirm("تسجيل الخروج من لوحة التحكم؟")) logout(); });
+
+/* الموظف لا يملك زر خروج. مخرج مخصّص للإدارة فقط:
+   الضغط المطوّل على الشعار 5 ثوانٍ ثم إدخال كلمة مرور المدير. */
+(function adminExit() {
+  const logo = $("#empLogoTap");
+  if (!logo) return;
+  let timer = null;
+  const start = () => {
+    clearTimeout(timer);
+    timer = setTimeout(async () => {
+      const pass = prompt("خروج إداري — أدخل كلمة مرور المدير:");
+      if (pass === null) return;
+      const { verifyAdmin } = await import("./auth.js");
+      const r = await verifyAdmin(pass, state.settings?.adminPass || null);
+      if (r.ok) { toast("تم تسجيل خروج الحساب من هذا الجهاز", "ok"); logout(); }
+      else toast("كلمة المرور غير صحيحة", "err");
+    }, 5000);
+  };
+  const cancel = () => clearTimeout(timer);
+  ["mousedown", "touchstart"].forEach(ev => logo.addEventListener(ev, start, { passive: true }));
+  ["mouseup", "mouseleave", "touchend", "touchcancel"].forEach(ev => logo.addEventListener(ev, cancel, { passive: true }));
+})();
 
 /* ---------- تبويبات الدخول ---------- */
 $$("#loginTabs .tab").forEach(t => t.addEventListener("click", () => {
@@ -102,14 +123,35 @@ function loginError(msg) {
 $("#empLoginForm").addEventListener("submit", async e => {
   e.preventDefault();
   const typed = $("#empNameInput").value.trim();
-  if (!typed) return;
+  const phone = $("#empPhoneInput").value.trim();
+  if (!typed || !phone) return;
   if (!state.employees.length) { loginError("جارٍ تحميل قائمة الموظفين… حاول بعد لحظات"); return; }
-  const emp = findEmployeeByName(state.employees, typed);
-  if (!emp) { loginError("هذا الاسم غير مسجَّل لدى الإدارة. تأكد من كتابته بشكل صحيح."); return; }
+
+  const { emp, reason } = findEmployee(state.employees, typed, phone);
+  if (!emp) {
+    loginError(reason === "phone"
+      ? "رقم الهاتف لا يطابق الاسم المسجَّل. تأكد من الرقم أو راجع الإدارة."
+      : "هذا الاسم غير مسجَّل لدى الإدارة. تأكد من كتابته بشكل صحيح.");
+    return;
+  }
   if (emp.active === false) { loginError("حسابك موقوف حالياً — راجع الإدارة."); return; }
+
+  // ═══ ربط الحساب بجهاز واحد ═══
+  const dev = deviceId();
+  const isKiosk = state.settings?.kioskDeviceId && state.settings.kioskDeviceId === dev;
+  if (!isKiosk) {
+    if (!emp.boundDevice) {
+      await bindDevice(emp.id, dev);          // أول جهاز يستخدمه الموظف
+    } else if (emp.boundDevice !== dev) {
+      loginError("هذا الحساب مسجَّل على هاتف آخر. لاستخدام هاتف جديد اطلب من الإدارة تحرير الجهاز.");
+      return;
+    }
+  }
+
   await askPermission(true);
   state.session = { role: "employee", empId: emp.id, name: emp.name };
   LS.set("az_session", state.session);
+  $("#empPhoneInput").value = "";
   startSession();
 });
 
@@ -168,7 +210,10 @@ export function startSession() {
   else {
     const emp = state.employees.find(e => e.id === s.empId);
     if (!emp && state.employees.length) { toast("لم يعد حسابك موجوداً", "err"); logout(); return; }
-    disposeAdmin(); go("emp"); initEmployee(state, emp || { id: s.empId, name: s.name });
+    const me = emp || { id: s.empId, name: s.name };
+    const av = $("#empAvatar");
+    if (av) av.textContent = initials(me.name);
+    disposeAdmin(); go("emp"); initEmployee(state, me);
   }
 }
 
@@ -191,6 +236,7 @@ export function startSession() {
   watchSettings(s => {
     state.settings = s;
     document.title = `${s.company || "سلاح الأزهري"} — الحضور والانصراف`;
+    const c = $("#tbCompany"); if (c) c.textContent = s.company || "سلاح الأزهري";
     document.dispatchEvent(new CustomEvent("az:settings", { detail: s }));
   });
   getSettings().then(s => { if (!state.settings) state.settings = s; }).catch(() => {});
@@ -202,6 +248,21 @@ export function startSession() {
     dl.innerHTML = list.filter(e => e.active !== false)
       .map(e => `<option value="${esc(e.name)}"></option>`).join("");
     document.dispatchEvent(new CustomEvent("az:employees", { detail: list }));
+
+    // إن حرّرت الإدارة الجهاز أو أوقفت الحساب يُغلق التطبيق تلقائياً
+    if (state.session?.role === "employee") {
+      const me = list.find(e => e.id === state.session.empId);
+      const dev = deviceId();
+      const kiosk = state.settings?.kioskDeviceId === dev;
+      if (me && !kiosk && me.boundDevice && me.boundDevice !== dev) {
+        toast("تم نقل حسابك إلى جهاز آخر", "err");
+        setTimeout(logout, 1500);
+      } else if (me && me.active === false) {
+        toast("تم إيقاف حسابك — راجع الإدارة", "err");
+        setTimeout(logout, 1500);
+      }
+    }
+
     clearTimeout(fallback);
     showUI();
   });

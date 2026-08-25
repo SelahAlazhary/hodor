@@ -1,7 +1,8 @@
 /* ===== واجهة الموظف ===== */
 import {
   $, $$, esc, toast, clockStr, fullDateAr, dateKey, monthKey, dateAr, dayAr,
-  timeAr, minToHuman, minToHours, toDate, deviceId, hhmmToMin, now, nowMs, clockSynced, clockOffset, LS
+  timeAr, minToHuman, minToHours, toDate, deviceId, hhmmToMin, now, nowMs, clockSynced, clockOffset,
+  initials, LS
 } from "./utils.js";
 import { getPublicIP, ipMatches } from "./network.js";
 import { DB_URL } from "./firebase.js";
@@ -31,6 +32,8 @@ export function initEmployee(state, emp) {
   ST = state; EMP = emp;
 
   $("#empHeadName").textContent = emp.name;
+  $("#empHeadJob").textContent = emp.job || "موظف";
+  $("#empAvatar").textContent = initials(emp.name);
   $("#empHeadDate").textContent = fullDateAr();
   $("#empMonth").value = monthKey();
 
@@ -58,7 +61,12 @@ function onSettingsChanged() { applyKiosk(); paintToday(); paintAutoBar("", "ج�
 
 function onEmployeesChanged(e) {
   const fresh = e.detail.find(x => x.id === EMP?.id);
-  if (fresh) { EMP = fresh; $("#empHeadName").textContent = fresh.name; }
+  if (fresh) {
+    EMP = fresh;
+    $("#empHeadName").textContent = fresh.name;
+    $("#empHeadJob").textContent = fresh.job || "موظف";
+    $("#empAvatar").textContent = initials(fresh.name);
+  }
   applyKiosk();
 }
 
@@ -140,6 +148,14 @@ function watchToday() {
   unsubRec = watchRecord(dateKey(), t.id, rec => { today = rec; paintToday(); paintGauge(); });
 }
 
+/** يعكس حالة اليوم في شريط التوب بار */
+function paintTopStatus(text, kind) {
+  const chip = $("#tbStatus");
+  if (!chip) return;
+  chip.className = "tb-chip " + (kind || "");
+  chip.innerHTML = `<i></i> ${esc(text)}`;
+}
+
 function paintToday() {
   const pill = $("#statusPill");
   const inL = $("#inTimeLbl"), outL = $("#outTimeLbl");
@@ -150,12 +166,14 @@ function paintToday() {
   if (!today) {
     pill.className = "pill pill-idle";
     pill.textContent = blocked ? "التسجيل متاح فقط من جهاز الاستقبال المعتمد" : "لم يتم تسجيل الحضور بعد";
+    paintTopStatus("لم يتم تسجيل الحضور", "idle");
     inL.textContent = "—"; outL.textContent = "—";
     btnIn.disabled = blocked; btnOut.disabled = true; btnAbs.disabled = false;
     return;
   }
   if (today.status === "absent") {
     pill.className = "pill pill-abs"; pill.textContent = "مُسجَّل كغياب اليوم";
+    paintTopStatus("غياب اليوم", "abs");
     inL.textContent = "—"; outL.textContent = "—";
     btnIn.disabled = blocked; btnOut.disabled = true; btnAbs.disabled = true;
     return;
@@ -168,12 +186,15 @@ function paintToday() {
   if (today.checkOut) {
     pill.className = "pill pill-out";
     pill.textContent = `انتهى دوام اليوم — ${minToHuman(today.workedMin)}`;
+    paintTopStatus(`انصرف ${timeAr(today.checkOut)}`, "out");
   } else if (today.status === "late") {
     pill.className = "pill pill-late";
     pill.textContent = `حاضر (متأخر ${today.lateMin || 0} د) منذ ${timeAr(today.checkIn)}`;
+    paintTopStatus(`حاضر متأخر منذ ${timeAr(today.checkIn)}`, "late");
   } else {
     pill.className = "pill pill-in";
     pill.textContent = `حاضر منذ ${timeAr(today.checkIn)}`;
+    paintTopStatus(`حاضر منذ ${timeAr(today.checkIn)}`, "in");
   }
 }
 
