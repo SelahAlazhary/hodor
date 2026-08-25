@@ -13,7 +13,7 @@ import { LS, dateKey, monthRange, hhmmToMin, toDate, normName, samePhone, device
 
 /* ---------------- الإعدادات الافتراضية ---------------- */
 export const DEFAULT_SETTINGS = {
-  company: "سلاح الأزهري",
+  company: "Spot Light",
   workStart: "09:00",
   workEnd: "17:00",
   graceMin: 15,

@@ -1,5 +1,5 @@
 /* ===== Service Worker — تشغيل بدون إنترنت + الإشعارات ===== */
-const VERSION = "azhari-attendance-v7";
+const VERSION = "azhari-attendance-v8";
 const CFG_CACHE = "azhari-config";   // كاش دائم لإعدادات الحضور التلقائي
 const SHELL = [
   "./", "./index.html", "./manifest.webmanifest",
@@ -81,7 +81,7 @@ self.addEventListener("notificationclick", e => {
 
 /* استقبال إشعارات الدفع (اختياري عند تفعيل FCM) */
 self.addEventListener("push", e => {
-  let d = { title: "سلاح الأزهري", body: "لديك إشعار جديد" };
+  let d = { title: "Spot Light", body: "لديك إشعار جديد" };
   try { d = { ...d, ...e.data.json() }; } catch { if (e.data) d.body = e.data.text(); }
   e.waitUntil(self.registration.showNotification(d.title, {
     body: d.body, icon: "./icons/icon-192.png", badge: "./icons/icon-192.png",

@@ -1,4 +1,4 @@
-# نظام الحضور والانصراف — سلاح الأزهري
+# Spot Light — نظام الحضور والانصراف
 
 نظام متكامل لتسجيل حضور وانصراف الموظفين مع **حساب ساعات العمل تلقائياً طوال الشهر**،
 لوحة تحكم للمدير، إشعارات على الهاتف، حضور تلقائي عبر شبكة الشركة، وعمل كامل **بدون إنترنت**
@@ -78,7 +78,7 @@ npx serve .
 ```bash
 git init
 git add .
-git commit -m "نظام الحضور والانصراف - سلاح الأزهري"
+git commit -m "نظام الحضور والانصراف - Spot Light"
 git branch -M main
 git remote add origin https://github.com/USERNAME/azhari-attendance.git
 git push -u origin main
@@ -401,4 +401,4 @@ devices/{deviceId}           الأجهزة المسجّلة لاختيار جه
 
 ---
 
-© سلاح الأزهري
+© Spot Light Studio

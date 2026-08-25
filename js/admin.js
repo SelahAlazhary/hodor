@@ -664,7 +664,7 @@ function bindSettings() {
   $("#setForm").onsubmit = async e => {
     e.preventDefault();
     await saveSettings({
-      company: $("#sCompany").value.trim() || "سلاح الأزهري",
+      company: $("#sCompany").value.trim() || "Spot Light",
       workStart: $("#sStart").value || "09:00",
       workEnd: $("#sEnd").value || "17:00",
       graceMin: Number($("#sGrace").value || 0),
@@ -742,7 +742,7 @@ function bindSettings() {
   };
   $("#admTestNotif").onclick = async () => {
     if (!await askPermission()) return;
-    notify("🔔 إشعار تجريبي", "إشعارات نظام الحضور تعمل بنجاح — سلاح الأزهري", { tag: "test" });
+    notify("🔔 إشعار تجريبي", "إشعارات نظام الحضور تعمل بنجاح — Spot Light", { tag: "test" });
   };
 }
 

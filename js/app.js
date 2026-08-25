@@ -317,7 +317,7 @@ async function handleBindLink(token) {
   // الإعدادات (مباشر)
   watchSettings(s => {
     state.settings = s;
-    document.title = `${s.company || "سلاح الأزهري"} — الحضور والانصراف`;
+    document.title = `${s.company || "Spot Light"} — الحضور والانصراف`;
     document.dispatchEvent(new CustomEvent("az:settings", { detail: s }));
   });
   getSettings().then(s => { if (!state.settings) state.settings = s; }).catch(() => {});

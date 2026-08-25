@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 ═══════════════════════════════════════════════════════════════
-  سلاح الأزهري — خدمة التقارير والمهام التلقائية (Python / FastAPI)
+  Spot Light — خدمة التقارير والمهام التلقائية (Python / FastAPI)
 ═══════════════════════════════════════════════════════════════
 تعمل بجانب التطبيق ولا تعطّله: التطبيق يظل يسجّل الحضور مباشرة
 (ويعمل بدون إنترنت)، وهذه الخدمة تتولّى الأعمال الثقيلة:
@@ -47,7 +47,7 @@ AR_MONTHS = ["يناير", "فبراير", "مارس", "أبريل", "مايو",
              "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر"]
 
 app = FastAPI(
-    title="نظام حضور سلاح الأزهري",
+    title="نظام حضور Spot Light",
     description="خدمة التقارير والمهام التلقائية",
     docs_url="/api/docs",
     openapi_url="/api/openapi.json",
@@ -266,7 +266,7 @@ def health():
     n = now_cairo()
     return {
         "ok": True,
-        "service": "خدمة تقارير سلاح الأزهري",
+        "service": "خدمة تقارير Spot Light",
         "serverTimeCairo": n.strftime("%Y-%m-%d %H:%M:%S"),
         "day": day_ar(date_key(n)),
         "employees": len(emps),
@@ -305,7 +305,7 @@ def monthly_report(month: str = Query(default=None, description="YYYY-MM")):
     month = month or now_cairo().strftime("%Y-%m")
     settings, emps, rows_by_emp = load_context(month)
     y, m = (int(x) for x in month.split("-"))
-    company = settings.get("company") or "سلاح الأزهري"
+    company = settings.get("company") or "Spot Light"
 
     wb = Workbook()
     ws = new_sheet(
@@ -488,7 +488,7 @@ def cleanup(dry: bool = Query(default=True, description="معاينة بدون �
 @app.get("/api")
 def index():
     return JSONResponse({
-        "service": "خدمة تقارير سلاح الأزهري",
+        "service": "خدمة تقارير Spot Light",
         "endpoints": {
             "/api/health": "حالة الخدمة والوقت الرسمي",
             "/api/summary?month=YYYY-MM": "ملخّص شهري JSON",

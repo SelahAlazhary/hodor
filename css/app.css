@@ -4,24 +4,25 @@
    ══════════════════════════════════════════════════════════ */
 
 :root{
-  /* الألوان الأساسية — مستخرجة من شعار الشركة */
-  --green-900:#053d21; --green-800:#075a30; --green:#0b6b3a; --green-600:#0e8a4a;
-  --green-500:#12a35a; --green-100:#e3f3ea; --green-50:#f1f9f4;
-  --gold-700:#9a7b12; --gold:#c9a227; --gold-400:#e8c351; --gold-100:#fdf5df;
+  /* ألوان هوية Spot Light — البنفسجي والبرتقالي من الشعار
+     (أسماء المتغيرات تاريخية، وقيمها الآن ألوان الهوية الجديدة) */
+  --green-900:#1b0f36; --green-800:#2a1a4a; --green:#4b2c87; --green-600:#5b3a9e;
+  --green-500:#6d47b8; --green-100:#ece5f9; --green-50:#f6f3fd;
+  --gold-700:#b5650a; --gold:#f5921e; --gold-400:#ffb457; --gold-100:#fff3e2;
   --blue:#1565c0; --blue-100:#e7f0fb;
   --red:#c62828;  --red-100:#fdeaea;
   --amber:#e07a00; --amber-100:#fff3e2;
   --teal:#00796b; --purple:#6a3fa0;
 
-  --ink:#10231a; --ink-2:#3b4f45; --muted:#71857a;
+  --ink:#1e1330; --ink-2:#3b4f45; --muted:#71857a;
   --line:#e4ebe7; --line-2:#eef3f0;
   --bg:#f2f6f4; --card:#ffffff;
 
   --r-sm:10px; --r:14px; --r-lg:20px; --r-xl:26px;
-  --sh-xs:0 1px 2px rgba(9,58,32,.06);
-  --sh-sm:0 2px 8px rgba(9,58,32,.07);
-  --sh:0 6px 22px rgba(9,58,32,.09);
-  --sh-lg:0 18px 48px rgba(6,44,24,.18);
+  --sh-xs:0 1px 2px rgba(40,20,74,.06);
+  --sh-sm:0 2px 8px rgba(40,20,74,.07);
+  --sh:0 6px 22px rgba(40,20,74,.09);
+  --sh-lg:0 18px 48px rgba(27,15,54,.18);
   --ease:cubic-bezier(.4,0,.2,1);
 }
 
@@ -63,7 +64,7 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit
 /* ═══════════ شاشة الإقلاع ═══════════ */
 .boot{
   position:fixed;inset:0;z-index:999;display:grid;place-content:center;justify-items:center;
-  background:radial-gradient(120% 90% at 50% 0%,#0e8a4a 0%,#0b6b3a 42%,#053d21 100%);
+  background:radial-gradient(120% 90% at 50% 0%,#5b3a9e 0%,#4b2c87 42%,#1b0f36 100%);
   overflow:hidden;
 }
 .boot-inner{position:relative;display:grid;justify-items:center;gap:6px;z-index:1}
@@ -82,7 +83,7 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit
 }
 .netbar .ico{width:15px;height:15px;color:var(--gold-400)}
 .netbar.online{background:linear-gradient(90deg,var(--green-600),var(--green-500))}
-.netbar.online .ico{color:#bdf5d3}
+.netbar.online .ico{color:#ffd9a8}
 
 /* ═══════════ عناصر عامة ═══════════ */
 .view{display:none;animation:fade .3s var(--ease)}
@@ -114,9 +115,9 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit
   white-space:nowrap;
 }
 .btn:active{transform:scale(.97)}
-.btn-primary{background:linear-gradient(135deg,var(--green-600),var(--green));color:#fff;box-shadow:0 4px 14px rgba(11,107,58,.28)}
-.btn-primary:hover{box-shadow:0 7px 20px rgba(11,107,58,.36)}
-.btn-dark{background:linear-gradient(135deg,#1b3327,#0b6b3a);color:#fff;box-shadow:0 4px 14px rgba(16,35,26,.3)}
+.btn-primary{background:linear-gradient(135deg,var(--green-600),var(--green));color:#fff;box-shadow:0 4px 14px rgba(75,44,135,.28)}
+.btn-primary:hover{box-shadow:0 7px 20px rgba(75,44,135,.36)}
+.btn-dark{background:linear-gradient(135deg,#2a1a4a,#4b2c87);color:#fff;box-shadow:0 4px 14px rgba(30,19,48,.3)}
 .btn-danger{background:var(--red);color:#fff;box-shadow:0 4px 12px rgba(198,40,40,.25)}
 .btn-ghost{background:var(--line-2);color:var(--ink-2)}
 .btn-ghost:hover{background:#e3ebe6}
@@ -159,11 +160,11 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit
 /* ═══════════ شاشة الدخول ═══════════ */
 #view-login{
   position:relative;min-height:100dvh;overflow:hidden;
-  background:radial-gradient(130% 80% at 50% -10%,#12a35a 0%,#0b6b3a 40%,#04331c 100%);
+  background:radial-gradient(130% 80% at 50% -10%,#6d47b8 0%,#4b2c87 40%,#1b0f36 100%);
 }
 .login-glow{
   position:absolute;inset-inline:0;top:-90px;height:340px;pointer-events:none;
-  background:radial-gradient(closest-side,rgba(232,195,81,.28),transparent 72%);
+  background:radial-gradient(closest-side,rgba(255,180,87,.28),transparent 72%);
 }
 .login-wrap{
   position:relative;z-index:2;max-width:428px;margin:0 auto;padding:30px 18px;
@@ -205,11 +206,11 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit
 .topbar{
   position:sticky;top:0;z-index:50;overflow:hidden;color:#fff;
   background:
-    radial-gradient(120% 160% at 100% 0%, rgba(232,195,81,.18) 0%, transparent 55%),
-    linear-gradient(150deg,#062e19 0%,var(--green) 46%,var(--green-600) 100%);
+    radial-gradient(120% 160% at 100% 0%, rgba(255,180,87,.18) 0%, transparent 55%),
+    linear-gradient(150deg,#2a1a4a 0%,var(--green) 46%,var(--green-600) 100%);
   padding-top:env(safe-area-inset-top);
   border-radius:0 0 20px 20px;
-  box-shadow:0 8px 22px -8px rgba(4,38,20,.5);
+  box-shadow:0 8px 22px -8px rgba(24,12,48,.5);
 }
 .topbar::after{
   content:"";position:absolute;inset-inline:18%;bottom:0;height:2px;border-radius:2px;
@@ -217,8 +218,8 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit
 }
 .topbar-dark{
   background:
-    radial-gradient(120% 160% at 100% 0%, rgba(232,195,81,.13) 0%, transparent 55%),
-    linear-gradient(150deg,#04150c 0%,#0a3a21 55%,var(--green) 100%);
+    radial-gradient(120% 160% at 100% 0%, rgba(255,180,87,.13) 0%, transparent 55%),
+    linear-gradient(150deg,#160b2b 0%,#3a2168 55%,var(--green) 100%);
 }
 .topbar>*{position:relative;z-index:1}
 .topbar>.topbar-geo{position:absolute!important;z-index:0;height:100%}
@@ -230,8 +231,8 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit
 .tb-user{display:flex;align-items:center;gap:9px;min-width:0;flex:1}
 .tb-avatar{
   width:36px;height:36px;border-radius:12px;flex:none;display:grid;place-items:center;
-  font-weight:900;font-size:13.5px;color:#3a2d00;letter-spacing:-.4px;
-  background:linear-gradient(145deg,#fbe9ac,var(--gold));
+  font-weight:900;font-size:13.5px;color:#5a2c00;letter-spacing:-.4px;
+  background:linear-gradient(145deg,#ffd9a8,var(--gold));
   box-shadow:0 3px 10px rgba(0,0,0,.26), inset 0 1px 0 rgba(255,255,255,.6);
 }
 .tb-user-info{min-width:0;display:flex;flex-direction:column;gap:2px}
@@ -264,7 +265,7 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit
   overflow:hidden;text-overflow:ellipsis;max-width:100%;opacity:.95;
 }
 .tb-chip i{width:6px;height:6px;border-radius:50%;background:#cbd6d0;flex:none}
-.tb-chip.in i{background:#5ff0a0;box-shadow:0 0 0 3px rgba(95,240,160,.2);animation:blip 2s infinite}
+.tb-chip.in i{background:#ffb457;box-shadow:0 0 0 3px rgba(255,180,87,.2);animation:blip 2s infinite}
 .tb-chip.late i{background:#ffc453;box-shadow:0 0 0 3px rgba(255,196,83,.2)}
 .tb-chip.out i{background:#8ec5ff}
 .tb-chip.abs i{background:#ff8f8f}
@@ -277,7 +278,7 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit
   border-radius:18px;padding:3px 9px;white-space:nowrap;
 }
 .conn i{width:6px;height:6px;border-radius:50%;background:#9fb3a8;flex:none;transition:.25s}
-.conn[data-state="on"] i{background:#5ff0a0;box-shadow:0 0 0 3px rgba(95,240,160,.2)}
+.conn[data-state="on"] i{background:#ffb457;box-shadow:0 0 0 3px rgba(255,180,87,.2)}
 .conn[data-state="sync"] i{background:var(--gold-400);animation:blip 1.1s infinite}
 .conn[data-state="off"] i{background:#ff9b6b}
 .conn[data-state="off"]{background:rgba(255,155,107,.16);border-color:rgba(255,155,107,.3)}
@@ -298,7 +299,7 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit
 /* ═══════════ بطاقة الساعة والحلقة ═══════════ */
 .clock-card{
   text-align:center;padding:20px 16px 18px;border-radius:var(--r-xl);
-  background:linear-gradient(165deg,#fff 0%,#f4faf6 100%);border-color:#dceade;
+  background:linear-gradient(165deg,#fff 0%,#f4faf6 100%);border-color:#ddd2f2;
 }
 .gauge{position:relative;width:230px;max-width:78vw;aspect-ratio:1;margin:0 auto}
 .gauge-svg{width:100%;height:100%;transform:rotate(-90deg)}
@@ -328,7 +329,7 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit
 .pill-late{background:var(--amber-100);color:var(--amber)}
 .pill-out{background:var(--blue-100);color:var(--blue)}
 .pill-abs{background:var(--red-100);color:var(--red)}
-@keyframes pulse{50%{box-shadow:0 0 0 6px rgba(18,163,90,.12)}}
+@keyframes pulse{50%{box-shadow:0 0 0 6px rgba(109,71,184,.12)}}
 
 /* ═══════════ أزرار الإجراءات ═══════════ */
 .action-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px}
@@ -354,7 +355,7 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit
 .action-ico .badge{position:absolute;top:-4px;inset-inline-start:-4px}
 .action-title{font-weight:800;font-size:15px;color:var(--ink)}
 .action-sub{font-size:11.5px;color:var(--muted);font-weight:600}
-.action-in{color:var(--green-600);background:linear-gradient(165deg,#fff,#eefaf2)}
+.action-in{color:var(--green-600);background:linear-gradient(165deg,#fff,#f3eefc)}
 .action-out{color:var(--red);background:linear-gradient(165deg,#fff,#fdf0f0)}
 .action-abs{color:var(--amber);background:linear-gradient(165deg,#fff,#fdf7ea)}
 .action-chat{color:var(--blue);background:linear-gradient(165deg,#fff,#eef4fd)}
@@ -377,7 +378,7 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit
 
 /* ═══════════ شريط الكشك ═══════════ */
 .kiosk-bar{
-  background:linear-gradient(135deg,var(--gold-100),#fffbef);border:1px solid #eadfb2;
+  background:linear-gradient(135deg,var(--gold-100),#fff8ee);border:1px solid #f6d6ab;
   border-radius:var(--r-lg);padding:14px;margin-bottom:14px;
 }
 .kiosk-head{display:flex;align-items:center;gap:11px;margin-bottom:10px}
@@ -416,7 +417,7 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit
 .mini .ico{width:13px;height:13px}
 .mini:hover{background:var(--line-2)}
 .mini.danger{background:var(--red-100);color:var(--red);border-color:#f3cccc}
-.mini.ok{background:var(--green-100);color:var(--green-600);border-color:#bfe4cd}
+.mini.ok{background:var(--green-100);color:var(--green-600);border-color:#c9b8ec}
 code{font-size:11px;background:var(--line-2);padding:2px 6px;border-radius:6px;direction:ltr;display:inline-block}
 
 /* ═══════════ تنقّل لوحة المدير ═══════════ */
@@ -434,7 +435,7 @@ code{font-size:11px;background:var(--line-2);padding:2px 6px;border-radius:6px;d
 .navbtn:hover{border-color:var(--green-500);color:var(--green-600)}
 .navbtn.active{
   background:linear-gradient(135deg,var(--green-600),var(--green));color:#fff;border-color:transparent;
-  box-shadow:0 4px 12px rgba(11,107,58,.26);
+  box-shadow:0 4px 12px rgba(75,44,135,.26);
 }
 .pane{display:none} .pane.active{display:block;animation:fade .25s var(--ease)}
 
@@ -502,7 +503,7 @@ code{font-size:11px;background:var(--line-2);padding:2px 6px;border-radius:6px;d
 
 /* ═══════════ التنبيه العائم ═══════════ */
 .toast{
-  position:fixed;bottom:24px;inset-inline:16px;z-index:300;background:#10231a;color:#fff;
+  position:fixed;bottom:24px;inset-inline:16px;z-index:300;background:#1e1330;color:#fff;
   padding:13px 18px;border-radius:14px;text-align:center;font-weight:700;font-size:14px;
   box-shadow:var(--sh-lg);animation:up .22s var(--ease);max-width:460px;margin:0 auto;
 }
@@ -540,8 +541,8 @@ code{font-size:11px;background:var(--line-2);padding:2px 6px;border-radius:6px;d
 /* ═══════════ الحضور التلقائي عبر شبكة الشركة ═══════════ */
 .auto-bar{
   display:flex;align-items:center;gap:11px;margin-bottom:14px;padding:12px 14px;
-  border-radius:var(--r-lg);border:1px solid #bfe4cd;
-  background:linear-gradient(135deg,var(--green-100),#f4fbf7);
+  border-radius:var(--r-lg);border:1px solid #c9b8ec;
+  background:linear-gradient(135deg,var(--green-100),#f6f3fd);
 }
 .auto-ico{
   width:38px;height:38px;border-radius:12px;flex:none;display:grid;place-items:center;
@@ -578,7 +579,7 @@ code{font-size:11px;background:var(--line-2);padding:2px 6px;border-radius:6px;d
 
 .net-current{
   display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;
-  background:var(--gold-100);border:1px solid #eadfb2;border-radius:14px;padding:12px 14px;margin-bottom:13px;
+  background:var(--gold-100);border:1px solid #f6d6ab;border-radius:14px;padding:12px 14px;margin-bottom:13px;
 }
 .net-current small{display:block;font-size:11.5px;color:var(--muted);font-weight:600}
 .net-current b{font-size:16px;color:var(--gold-700);direction:ltr;display:inline-block;font-variant-numeric:tabular-nums}
@@ -612,7 +613,7 @@ code{font-size:11px;background:var(--line-2);padding:2px 6px;border-radius:6px;d
 /* ═══════════ شاشة تثبيت التطبيق ═══════════ */
 #view-install{
   position:relative;min-height:100dvh;overflow:hidden;
-  background:radial-gradient(130% 80% at 50% -10%,#12a35a 0%,#0b6b3a 42%,#04331c 100%);
+  background:radial-gradient(130% 80% at 50% -10%,#6d47b8 0%,#4b2c87 42%,#1b0f36 100%);
 }
 .install-wrap{
   position:relative;z-index:2;max-width:430px;margin:0 auto;color:#fff;
@@ -621,7 +622,7 @@ code{font-size:11px;background:var(--line-2);padding:2px 6px;border-radius:6px;d
 }
 .install-phone{
   width:132px;height:214px;border-radius:24px;padding:9px;margin-bottom:20px;
-  background:linear-gradient(160deg,#1d3b2b,#0d2318);
+  background:linear-gradient(160deg,#3a2168,#1b0f36);
   border:2px solid rgba(255,255,255,.28);
   box-shadow:0 20px 46px rgba(0,0,0,.42), inset 0 1px 0 rgba(255,255,255,.16);
   position:relative;animation:floaty 3.4s ease-in-out infinite;
@@ -640,8 +641,8 @@ code{font-size:11px;background:var(--line-2);padding:2px 6px;border-radius:6px;d
 .install-wrap h1{font-size:24px;margin-bottom:8px}
 .install-lead{font-size:14px;opacity:.86;line-height:1.85;margin:0 0 22px;max-width:360px}
 .btn-gold{
-  background:linear-gradient(135deg,#f6dc8e,var(--gold));color:#3a2d00;
-  box-shadow:0 8px 22px rgba(201,162,39,.4);font-weight:900;
+  background:linear-gradient(135deg,#ffc98a,var(--gold));color:#5a2c00;
+  box-shadow:0 8px 22px rgba(245,146,30,.4);font-weight:900;
 }
 .install-steps{
   background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.18);
@@ -652,7 +653,7 @@ code{font-size:11px;background:var(--line-2);padding:2px 6px;border-radius:6px;d
 .install-steps ol{margin:0;padding-inline-start:18px;font-size:13px;line-height:2;opacity:.92}
 .install-note{
   display:flex;align-items:flex-start;gap:9px;text-align:start;
-  background:rgba(232,195,81,.14);border:1px solid rgba(232,195,81,.32);
+  background:rgba(255,180,87,.14);border:1px solid rgba(255,180,87,.32);
   border-radius:14px;padding:11px 13px;margin-top:16px;font-size:12.5px;line-height:1.75;
 }
 .install-note .ico{width:17px;height:17px;color:var(--gold-400);flex:none;margin-top:2px}
@@ -681,7 +682,7 @@ code{font-size:11px;background:var(--line-2);padding:2px 6px;border-radius:6px;d
 .emp-form{display:block}
 .ef-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:0 14px}
 .ef-shift{
-  border:1.5px dashed #cfe0d5;border-radius:16px;padding:13px 14px 6px;
+  border:1.5px dashed #d5c9ef;border-radius:16px;padding:13px 14px 6px;
   background:linear-gradient(160deg,var(--green-50),#fff);margin:4px 0 14px;
 }
 .ef-shift-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:11px}
@@ -691,7 +692,7 @@ code{font-size:11px;background:var(--line-2);padding:2px 6px;border-radius:6px;d
   margin-inline-start:auto;font-size:11.5px;font-weight:800;color:var(--muted);
   background:#fff;border:1px solid var(--line);border-radius:20px;padding:3px 11px;
 }
-.ef-sum.on{background:var(--gold-100);border-color:#eadfb2;color:var(--gold-700)}
+.ef-sum.on{background:var(--gold-100);border-color:#f6d6ab;color:var(--gold-700)}
 .ef-times{display:grid;grid-template-columns:1fr 1fr;gap:0 12px}
 .ef-times .field>span{font-size:11.5px;color:var(--muted)}
 .ef-actions{display:flex;gap:9px;flex-wrap:wrap}
@@ -709,8 +710,8 @@ code{font-size:11px;background:var(--line-2);padding:2px 6px;border-radius:6px;d
 .action-grid.no-in #btnCheckOut .action-sub{display:none}
 .auto-only{
   display:flex;align-items:center;gap:11px;margin-bottom:14px;padding:12px 14px;
-  border-radius:var(--r-lg);border:1px solid #bfe4cd;
-  background:linear-gradient(135deg,var(--green-100),#f4fbf7);
+  border-radius:var(--r-lg);border:1px solid #c9b8ec;
+  background:linear-gradient(135deg,var(--green-100),#f6f3fd);
 }
 .auto-only b{display:block;font-size:13.5px;color:var(--green-800)}
 .auto-only>div>span{font-size:11.5px;color:var(--muted)}
@@ -752,12 +753,12 @@ code{font-size:11px;background:var(--line-2);padding:2px 6px;border-radius:6px;d
 /* ═══════════ بطاقة تثبيت داخل شاشة الموظف ═══════════ */
 .install-card{
   display:flex;align-items:center;gap:11px;margin-bottom:14px;padding:12px 14px;
-  border-radius:var(--r-lg);border:1px solid #eadfb2;
-  background:linear-gradient(135deg,var(--gold-100),#fffbef);
+  border-radius:var(--r-lg);border:1px solid #f6d6ab;
+  background:linear-gradient(135deg,var(--gold-100),#fff8ee);
 }
 .install-card-ico{
   width:38px;height:38px;border-radius:12px;flex:none;display:grid;place-items:center;
-  background:linear-gradient(135deg,#f6dc8e,var(--gold));color:#3a2d00;
+  background:linear-gradient(135deg,#ffc98a,var(--gold));color:#5a2c00;
 }
 .install-card-ico .ico{width:19px;height:19px}
 .install-card b{display:block;font-size:13.5px;color:var(--gold-700)}
