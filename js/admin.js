@@ -283,12 +283,27 @@ function bindEmployees() {
     } catch (err) { toast("خطأ في الحفظ: " + err.message, "err"); }
   };
   $("#empFormReset").onclick = resetEmpForm;
+  $("#fStart").addEventListener("change", paintShiftSum);
+  $("#fEnd").addEventListener("change", paintShiftSum);
+  paintShiftSum();
   $("#empSearch").oninput = paintEmployees;
 }
+/** ملخّص مواعيد الدوام بالعربية مع عدد الساعات */
+function paintShiftSum() {
+  const el = $("#fShiftSum"); if (!el) return;
+  const a = $("#fStart").value, b = $("#fEnd").value;
+  if (!a || !b) { el.textContent = "دوام الشركة الافتراضي"; el.className = "ef-sum"; return; }
+  let d = (hhmmToMin(b) || 0) - (hhmmToMin(a) || 0);
+  if (d < 0) d += 1440;
+  el.textContent = `${timeLabelAr(a)} ← ${timeLabelAr(b)} • ${minToHuman(d)}`;
+  el.className = "ef-sum on";
+}
+
 function resetEmpForm() {
   $("#empForm").reset(); $("#empId").value = "";
   refreshTimePickers($("#empForm"));
-  $("#empFormBtnLabel").textContent = "حفظ";
+  paintShiftSum();
+  $("#empFormBtnLabel").textContent = "حفظ الموظف";
 }
 
 function paintEmployees() {
@@ -319,8 +334,9 @@ function paintEmployees() {
       $("#empId").value = emp.id; $("#fName").value = emp.name; $("#fJob").value = emp.job || "";
       $("#fPhone").value = emp.phone || ""; $("#fStart").value = emp.workStart || "";
       $("#fEnd").value = emp.workEnd || "";
-      refreshTimePickers($("#empForm")); $("#fActive").value = emp.active === false ? "0" : "1";
-      $("#empFormBtnLabel").textContent = "تحديث";
+      refreshTimePickers($("#empForm"));
+      paintShiftSum(); $("#fActive").value = emp.active === false ? "0" : "1";
+      $("#empFormBtnLabel").textContent = "تحديث البيانات";
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
     if (b.dataset.e === "free") {

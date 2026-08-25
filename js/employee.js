@@ -125,6 +125,7 @@ function startClock() {
       src.className = "clock-src" + (clockSynced() ? " synced" : "");
     }
     paintGauge();
+    checkoutReminder();
   };
   tick();
   clockTimer = setInterval(tick, 1000);
@@ -313,6 +314,37 @@ export function statusTag(r) {
   return '<span class="tag t-off">—</span>';
 }
 
+/* ---------- تنبيه انتهاء وقت العمل ---------- */
+/** موعد انتهاء دوام الموظف بالدقائق */
+const shiftEndMin = () => hhmmToMin(EMP?.workEnd || ST?.settings?.workEnd || "17:00");
+
+/** ينبّه الموظف عند انتهاء دوامه ليسجّل انصرافه بنفسه
+ *  (لا يُسجَّل الانصراف تلقائياً حتى يُحتسب الوقت الإضافي بدقة) */
+function checkoutReminder() {
+  if (!EMP || !today || !today.checkIn || today.checkOut || today.status === "absent") return;
+  const end = shiftEndMin();
+  if (end == null) return;
+
+  const t = now();
+  const cur = t.getHours() * 60 + t.getMinutes();
+  if (cur < end) return;
+
+  const over = cur - end;
+  const slot = Math.floor(over / 30);            // تذكير كل 30 دقيقة
+  if (slot > 4) return;                          // نتوقف بعد ساعتين
+  const key = `az_endnotif_${EMP.id}_${dateKey()}`;
+  if (Number(LS.get(key, 0)) > slot) return;
+  LS.set(key, slot + 1);
+
+  const endLabel = EMP.workEnd || ST?.settings?.workEnd || "17:00";
+  const extra = over >= 5 ? `\n⏱ أنت الآن في وقت إضافي: ${minToHuman(over)}` : "";
+  buzz([160, 80, 160]);
+  toast("انتهى وقت دوامك — سجّل انصرافك", "ok");
+  notify("🔔 حان وقت الانصراف",
+    `${EMP.name}\nانتهى دوامك الساعة ${endLabel}${extra}\nسجّل انصرافك الآن ليُحتسب وقتك بدقة.`,
+    { tag: "checkout-due", sticky: true });
+}
+
 /* ---------- الحضور التلقائي عبر شبكة الشركة ---------- */
 const autoNets = () => Object.values(ST?.settings?.networks || {});
 
@@ -374,7 +406,8 @@ async function armBackgroundAuto() {
     (reg.active || reg.waiting)?.postMessage({
       type: "az-auto-config",
       config: { dbUrl: DB_URL, empId: EMP.id, empName: EMP.name,
-                workStart: EMP.workStart || "", clockOffset: clockOffset() }
+                workStart: EMP.workStart || "", workEnd: EMP.workEnd || "",
+                clockOffset: clockOffset() }
     });
     // يفحص الشبكة فور عودة الاتصال حتى لو كان التطبيق مغلقاً
     if ("sync" in reg) {

@@ -1,5 +1,5 @@
 /* ===== Service Worker — تشغيل بدون إنترنت + الإشعارات ===== */
-const VERSION = "azhari-attendance-v4";
+const VERSION = "azhari-attendance-v5";
 const CFG_CACHE = "azhari-config";   // كاش دائم لإعدادات الحضور التلقائي
 const SHELL = [
   "./", "./index.html", "./manifest.webmanifest",
@@ -105,7 +105,7 @@ self.addEventListener("message", e => {
 });
 
 self.addEventListener("periodicsync", e => {
-  if (e.tag === "az-auto-checkin") e.waitUntil(autoCheckin());
+  if (e.tag === "az-auto-checkin") e.waitUntil(Promise.all([autoCheckin(), checkoutDue()]));
 });
 self.addEventListener("sync", e => {
   if (e.tag === "az-auto-checkin") e.waitUntil(autoCheckin());
@@ -142,6 +142,48 @@ const ipHit = (ip, nets) => nets.some(n => {
   const v = String(n?.ip || "").trim();
   return v && (v.endsWith(".") ? ip.startsWith(v) : ip === v);
 });
+
+/** تنبيه الموظف بانتهاء دوامه ليسجّل انصرافه بنفسه (يعمل والتطبيق مغلق) */
+async function checkoutDue() {
+  try {
+    const c = await caches.open(CFG_CACHE);
+    const res = await c.match(new Request(CFG_KEY));
+    if (!res) return;
+    const cfg = await res.json();
+    if (!cfg?.dbUrl || !cfg?.empId) return;
+
+    const S = await (await fetch(`${cfg.dbUrl}/settings/global.json`, { cache: "no-store" })).json() || {};
+    const endStr = cfg.workEnd || S.workEnd || "17:00";
+    const end = toMin(endStr);
+    if (end == null) return;
+
+    const ms = Date.now() + (Number(cfg.clockOffset) || 0);
+    const now = cairo(ms);
+    const cur = now.getHours() * 60 + now.getMinutes();
+    if (cur < end) return;
+
+    const dk = `${now.getFullYear()}-${p2(now.getMonth() + 1)}-${p2(now.getDate())}`;
+    const rec = await (await fetch(`${cfg.dbUrl}/attendance/${dk}/${cfg.empId}.json`, { cache: "no-store" })).json();
+    if (!rec || !rec.checkIn || rec.checkOut || rec.status === "absent") return;
+
+    const slot = Math.floor((cur - end) / 30);
+    if (slot > 4) return;
+    const mark = await c.match(new Request("/__az_reminder"));
+    const prev = mark ? await mark.json() : null;
+    if (prev && prev.date === dk && prev.slot > slot) return;
+    await c.put(new Request("/__az_reminder"),
+      new Response(JSON.stringify({ date: dk, slot: slot + 1 }), { headers: { "content-type": "application/json" } }));
+
+    const over = cur - end;
+    const extra = over >= 5 ? `\n⏱ أنت الآن في وقت إضافي: ${Math.floor(over / 60)} س ${over % 60} د` : "";
+    await self.registration.showNotification("🔔 حان وقت الانصراف", {
+      body: `${cfg.empName}\nانتهى دوامك الساعة ${endStr}${extra}\nسجّل انصرافك الآن ليُحتسب وقتك بدقة.`,
+      icon: "./icons/icon-192.png", badge: "./icons/icon-192.png",
+      dir: "rtl", lang: "ar", tag: "checkout-due", requireInteraction: true,
+      vibrate: [160, 80, 160]
+    });
+  } catch (e) { /* تجاهل */ }
+}
 
 async function autoCheckin() {
   try {

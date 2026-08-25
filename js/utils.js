@@ -90,16 +90,13 @@ export function monthRange(mk) {
 export function clockStr(d = now()) {
   return `${p2(d.getHours())}:${p2(d.getMinutes())}:${p2(d.getSeconds())}`;
 }
-/** 03:45 م */
+/** عرض الوقت بنظام 24 ساعة بتوقيت القاهرة — مثل 17:05 */
 export function timeAr(v) {
   if (!v) return "—";
   const raw = v instanceof Date ? v : new Date(v);
   if (isNaN(raw)) return "—";
-  const d = zoned(raw);          // العرض دائماً بتوقيت القاهرة
-  let h = d.getHours(); const m = p2(d.getMinutes());
-  const s = h < 12 ? "ص" : "م";
-  h = h % 12 || 12;
-  return `${p2(h)}:${m} ${s}`;
+  const d = zoned(raw);
+  return `${p2(d.getHours())}:${p2(d.getMinutes())}`;
 }
 export function dateAr(dk) {
   const d = new Date(dk + "T00:00:00");

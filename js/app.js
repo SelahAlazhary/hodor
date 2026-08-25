@@ -21,30 +21,28 @@ if ("serviceWorker" in navigator) {
   });
 }
 
-/* ---------- حالة الشبكة والمزامنة ---------- */
-const netbar = $("#netbar");
+/* ---------- علامة الاتصال ---------- */
 let dbOnline = false;
 
 function paintNet() {
   const pend = pendingCount();
-  if (!navigator.onLine || !dbOnline) {
-    netbar.classList.remove("online");
-    netbar.innerHTML = `<span class="dot"></span> لا يوجد اتصال — يتم الحفظ على الجهاز${pend ? ` (${pend} عملية بانتظار الرفع)` : ""} وسيُرفع تلقائياً عند عودة الإنترنت`;
-    netbar.hidden = false;
-  } else if (pend) {
-    netbar.classList.add("online");
-    netbar.innerHTML = `<span class="dot"></span> جارٍ رفع ${pend} عملية محفوظة…`;
-    netbar.hidden = false;
-  } else {
-    netbar.classList.add("online");
-    netbar.innerHTML = '<span class="dot"></span> متصل — كل البيانات محفوظة';
-    setTimeout(() => { if (dbOnline && !pendingCount()) netbar.hidden = true; }, 2200);
-  }
+  const offline = !navigator.onLine || !dbOnline;
+  const state = offline ? "off" : pend ? "sync" : "on";
+  const label = offline ? "غير متصل" : pend ? `رفع ${pend}` : "متصل";
+  $$(".conn").forEach(el => {
+    el.dataset.state = state;
+    el.title = offline
+      ? "لا يوجد اتصال — يُحفظ كل شيء على الجهاز ويُرفع تلقائياً عند عودة الإنترنت"
+      : pend ? `جارٍ رفع ${pend} عملية محفوظة` : "متصل — كل البيانات محفوظة";
+    const b = el.querySelector("b");
+    if (b) b.textContent = label;
+  });
 }
 watchConnection(on => { dbOnline = on; paintNet(); });
 window.addEventListener("online", () => { flush(); paintNet(); });
 window.addEventListener("offline", paintNet);
 setInterval(paintNet, 4000);
+paintNet();
 
 /* ---------- تثبيت التطبيق ---------- */
 let deferredPrompt = null;

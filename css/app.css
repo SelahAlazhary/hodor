@@ -200,99 +200,98 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit
 .install-btn{margin-top:16px}
 .foot{text-align:center;color:rgba(255,255,255,.55);font-size:11.5px;margin-top:22px}
 
-/* ═══════════ رأس التطبيق (تصميم هاتف) ═══════════ */
+/* ═══════════ رأس التطبيق (مضغوط بتصميم هاتف) ═══════════ */
 .topbar{
   position:sticky;top:0;z-index:50;overflow:hidden;color:#fff;
   background:
-    radial-gradient(120% 150% at 100% 0%, rgba(232,195,81,.20) 0%, transparent 55%),
+    radial-gradient(120% 160% at 100% 0%, rgba(232,195,81,.18) 0%, transparent 55%),
     linear-gradient(150deg,#062e19 0%,var(--green) 46%,var(--green-600) 100%);
   padding-top:env(safe-area-inset-top);
-  border-radius:0 0 26px 26px;
-  box-shadow:0 10px 30px -8px rgba(4,38,20,.55);
+  border-radius:0 0 20px 20px;
+  box-shadow:0 8px 22px -8px rgba(4,38,20,.5);
 }
-.topbar::after{                        /* لمعة ذهبية أسفل الرأس */
-  content:"";position:absolute;inset-inline:16%;bottom:0;height:2px;border-radius:2px;
-  background:linear-gradient(90deg,transparent,var(--gold-400),transparent);opacity:.7;
+.topbar::after{
+  content:"";position:absolute;inset-inline:18%;bottom:0;height:2px;border-radius:2px;
+  background:linear-gradient(90deg,transparent,var(--gold-400),transparent);opacity:.65;
 }
 .topbar-dark{
   background:
-    radial-gradient(120% 150% at 100% 0%, rgba(232,195,81,.14) 0%, transparent 55%),
+    radial-gradient(120% 160% at 100% 0%, rgba(232,195,81,.13) 0%, transparent 55%),
     linear-gradient(150deg,#04150c 0%,#0a3a21 55%,var(--green) 100%);
 }
 .topbar>*{position:relative;z-index:1}
+.topbar>.topbar-geo{position:absolute!important;z-index:0;height:100%}
 
-/* الصف الرئيسي */
 .tb-main{
-  display:flex;align-items:center;justify-content:space-between;gap:12px;
-  padding:12px 16px 10px;max-width:1200px;margin:0 auto;
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  padding:8px 14px;max-width:1200px;margin:0 auto;min-height:52px;
 }
-.tb-user{display:flex;align-items:center;gap:11px;min-width:0}
+.tb-user{display:flex;align-items:center;gap:9px;min-width:0;flex:1}
 .tb-avatar{
-  width:46px;height:46px;border-radius:16px;flex:none;display:grid;place-items:center;
-  font-weight:900;font-size:16px;color:#3a2d00;letter-spacing:-.5px;
+  width:36px;height:36px;border-radius:12px;flex:none;display:grid;place-items:center;
+  font-weight:900;font-size:13.5px;color:#3a2d00;letter-spacing:-.4px;
   background:linear-gradient(145deg,#fbe9ac,var(--gold));
-  box-shadow:0 6px 16px rgba(0,0,0,.3), inset 0 1px 0 rgba(255,255,255,.7);
+  box-shadow:0 3px 10px rgba(0,0,0,.26), inset 0 1px 0 rgba(255,255,255,.6);
 }
-.tb-user-info{min-width:0}
-.tb-user-info small{
-  display:block;font-size:11.5px;opacity:.72;font-weight:600;line-height:1.35;
-}
+.tb-user-info{min-width:0;display:flex;flex-direction:column;gap:2px}
 .tb-user-info strong{
-  display:block;font-size:17px;font-weight:800;letter-spacing:-.3px;line-height:1.25;
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:52vw;
+  display:block;font-size:13.5px;font-weight:800;letter-spacing:-.2px;line-height:1.2;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:46vw;
 }
+.tb-side{display:flex;align-items:center;gap:8px;flex:none}
 .tb-logo{
-  width:44px;height:44px;border-radius:15px;background:#fff;padding:3px;flex:none;
-  box-shadow:0 5px 15px rgba(0,0,0,.3);border:1.5px solid rgba(255,255,255,.55);
+  width:34px;height:34px;border-radius:11px;background:#fff;padding:2px;flex:none;
+  box-shadow:0 3px 10px rgba(0,0,0,.26);border:1.2px solid rgba(255,255,255,.5);
   user-select:none;-webkit-user-drag:none;transition:transform .15s var(--ease);
 }
-.tb-logo:active{transform:scale(.92)}
+.tb-logo:active{transform:scale(.9)}
 
 /* رأس المدير */
-.tb-brand{display:flex;align-items:center;gap:11px;min-width:0}
+.tb-brand{display:flex;align-items:center;gap:9px;min-width:0}
 .tb-titles{min-width:0}
-.tb-titles strong{display:block;font-size:16.5px;font-weight:800;letter-spacing:-.3px}
-.tb-titles small{display:block;font-size:11.5px;opacity:.72;font-weight:600;margin-top:-1px}
-.topbar-actions{display:flex;gap:8px}
+.tb-titles strong{display:block;font-size:14.5px;font-weight:800;letter-spacing:-.2px;line-height:1.25}
+.tb-titles small{display:block;font-size:10.5px;opacity:.72;font-weight:600}
+.topbar-actions{display:flex;gap:7px;align-items:center}
+.topbar-actions .icon-btn{width:34px;height:34px;border-radius:10px}
+.topbar-actions .icon-btn .ico{width:16px;height:16px}
 
-/* شريط الحالة */
-.tb-strip{
-  display:flex;align-items:center;justify-content:space-between;gap:10px;
-  padding:9px 16px 11px;margin:0 auto;max-width:1200px;
-  border-top:1px solid rgba(255,255,255,.1);
-  background:linear-gradient(180deg,rgba(0,0,0,.06),rgba(0,0,0,.18));
-}
+/* شارة حالة الحضور داخل الصف */
 .tb-chip{
-  display:inline-flex;align-items:center;gap:7px;font-size:12px;font-weight:800;
-  background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.18);
-  border-radius:22px;padding:5px 13px;white-space:nowrap;
-  overflow:hidden;text-overflow:ellipsis;max-width:60%;
-  backdrop-filter:blur(4px);
+  display:inline-flex;align-items:center;gap:5px;font-size:10.5px;font-weight:700;
+  background:rgba(255,255,255,.13);border:1px solid rgba(255,255,255,.16);
+  border-radius:20px;padding:2px 9px;white-space:nowrap;align-self:flex-start;
+  overflow:hidden;text-overflow:ellipsis;max-width:100%;opacity:.95;
 }
-.tb-chip i{width:7px;height:7px;border-radius:50%;background:#cbd6d0;flex:none}
-.tb-chip.in i{background:#5ff0a0;box-shadow:0 0 0 3px rgba(95,240,160,.22);animation:blip 2s infinite}
-.tb-chip.late i{background:#ffc453;box-shadow:0 0 0 3px rgba(255,196,83,.22)}
+.tb-chip i{width:6px;height:6px;border-radius:50%;background:#cbd6d0;flex:none}
+.tb-chip.in i{background:#5ff0a0;box-shadow:0 0 0 3px rgba(95,240,160,.2);animation:blip 2s infinite}
+.tb-chip.late i{background:#ffc453;box-shadow:0 0 0 3px rgba(255,196,83,.2)}
 .tb-chip.out i{background:#8ec5ff}
 .tb-chip.abs i{background:#ff8f8f}
 @keyframes blip{50%{opacity:.4}}
-.tb-meta{
-  font-size:11.5px;opacity:.78;font-weight:700;white-space:nowrap;
-  display:inline-flex;align-items:center;gap:5px;overflow:hidden;text-overflow:ellipsis;
-}
-.tb-dot{opacity:.5}
 
-/* على الشاشات الكبيرة نلغي الحواف الدائرية */
+/* علامة الاتصال */
+.conn{
+  display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:800;
+  background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.16);
+  border-radius:18px;padding:3px 9px;white-space:nowrap;
+}
+.conn i{width:6px;height:6px;border-radius:50%;background:#9fb3a8;flex:none;transition:.25s}
+.conn[data-state="on"] i{background:#5ff0a0;box-shadow:0 0 0 3px rgba(95,240,160,.2)}
+.conn[data-state="sync"] i{background:var(--gold-400);animation:blip 1.1s infinite}
+.conn[data-state="off"] i{background:#ff9b6b}
+.conn[data-state="off"]{background:rgba(255,155,107,.16);border-color:rgba(255,155,107,.3)}
+
 @media(min-width:761px){
   .topbar{border-radius:0}
   .topbar::after{inset-inline:0}
+  .tb-user-info strong{max-width:none;font-size:14.5px}
 }
 @media(max-width:380px){
-  .tb-main{padding:10px 13px 9px}
-  .tb-avatar{width:42px;height:42px;font-size:15px;border-radius:14px}
-  .tb-logo{width:40px;height:40px;border-radius:13px}
-  .tb-user-info strong{font-size:15.5px;max-width:46vw}
-  .tb-strip{padding:8px 13px 10px}
-  .tb-meta span:first-child,.tb-dot{display:none}
+  .tb-main{padding:7px 11px;gap:7px}
+  .tb-avatar{width:33px;height:33px;font-size:12.5px}
+  .tb-logo{width:31px;height:31px}
+  .conn b{display:none}
+  .conn{padding:5px}
 }
 
 /* ═══════════ بطاقة الساعة والحلقة ═══════════ */
@@ -422,7 +421,7 @@ code{font-size:11px;background:var(--line-2);padding:2px 6px;border-radius:6px;d
 /* ═══════════ تنقّل لوحة المدير ═══════════ */
 .admnav{
   display:flex;gap:7px;overflow-x:auto;padding:11px 13px;background:#fff;
-  border-bottom:1px solid var(--line);position:sticky;top:70px;z-index:40;scrollbar-width:none;
+  border-bottom:1px solid var(--line);position:sticky;top:52px;z-index:40;scrollbar-width:none;
 }
 .admnav::-webkit-scrollbar{display:none}
 .navbtn{
@@ -516,7 +515,7 @@ code{font-size:11px;background:var(--line-2);padding:2px 6px;border-radius:6px;d
 @media(max-width:760px){
   .stats-row{grid-template-columns:repeat(2,1fr)}
   .big-clock{font-size:31px}
-  .admnav{top:68px}
+  .admnav{top:52px}
   .page{padding:14px 12px 90px}
 }
 @media(max-width:380px){
@@ -677,3 +676,28 @@ code{font-size:11px;background:var(--line-2);padding:2px 6px;border-radius:6px;d
 .tp-h,.tp-m{flex:0 0 68px}
 .tp-a{flex:1;min-width:92px;color:var(--green-800);font-weight:800}
 .timepick+.tp-native{display:none}
+
+
+/* ═══════════ نموذج إضافة موظف ═══════════ */
+.emp-form{display:block}
+.ef-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:0 14px}
+.ef-shift{
+  border:1.5px dashed #cfe0d5;border-radius:16px;padding:13px 14px 6px;
+  background:linear-gradient(160deg,var(--green-50),#fff);margin:4px 0 14px;
+}
+.ef-shift-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:11px}
+.ef-shift-head .ico{width:17px;height:17px;color:var(--green-600)}
+.ef-shift-head b{font-size:13.5px}
+.ef-sum{
+  margin-inline-start:auto;font-size:11.5px;font-weight:800;color:var(--muted);
+  background:#fff;border:1px solid var(--line);border-radius:20px;padding:3px 11px;
+}
+.ef-sum.on{background:var(--gold-100);border-color:#eadfb2;color:var(--gold-700)}
+.ef-times{display:grid;grid-template-columns:1fr 1fr;gap:0 12px}
+.ef-times .field>span{font-size:11.5px;color:var(--muted)}
+.ef-actions{display:flex;gap:9px;flex-wrap:wrap}
+.ef-actions .btn{flex:1;min-width:130px}
+@media(max-width:560px){
+  .ef-times{grid-template-columns:1fr;gap:0}
+  .tp-h,.tp-m{flex:1}
+}

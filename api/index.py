@@ -109,16 +109,14 @@ def weekday_num(dk: str) -> int:
 
 
 def time_ar(iso: str) -> str:
-    """يحوّل لحظة ISO إلى ساعة بتوقيت القاهرة (03:45 م)."""
+    """يحوّل لحظة ISO إلى ساعة بتوقيت القاهرة بنظام 24 ساعة (17:05)."""
     if not iso:
         return "—"
     try:
         d = datetime.fromisoformat(str(iso).replace("Z", "+00:00")).astimezone(TZ)
     except Exception:
         return "—"
-    h, suffix = d.hour, ("ص" if d.hour < 12 else "م")
-    h = h % 12 or 12
-    return f"{h:02d}:{d.minute:02d} {suffix}"
+    return f"{d.hour:02d}:{d.minute:02d}"
 
 
 def hhmm_to_min(t):

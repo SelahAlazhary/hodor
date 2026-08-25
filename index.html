@@ -90,11 +90,6 @@
   </div>
 </div>
 
-<div id="netbar" class="netbar" hidden>
-  <svg class="ico"><use href="#i-wifi-off"/></svg>
-  <span>لا يوجد اتصال — يتم الحفظ محلياً وسيُرفع تلقائياً عند عودة الإنترنت</span>
-</div>
-
 <!-- ════════════════ شاشة الدخول ════════════════ -->
 <section id="view-login" class="view">
   <svg class="login-geo" aria-hidden="true"><rect width="100%" height="100%" fill="url(#pat-geo)"/></svg>
@@ -228,20 +223,17 @@
       <div class="tb-user">
         <div class="tb-avatar" id="empAvatar">؟</div>
         <div class="tb-user-info">
-          <small id="empGreet">أهلاً بك</small>
-          <strong id="empHeadName">—</strong>
+          <strong><span id="empGreet">أهلاً</span>، <span id="empHeadName">—</span></strong>
+          <span class="tb-chip" id="tbStatus"><i></i> لم يتم تسجيل الحضور</span>
         </div>
       </div>
-      <img src="./icons/logo.png" alt="" class="tb-logo" id="empLogoTap" />
+      <div class="tb-side">
+        <span class="conn" title="حالة الاتصال"><i></i><b>متصل</b></span>
+        <img src="./icons/logo.png" alt="" class="tb-logo" id="empLogoTap" />
+      </div>
     </div>
-    <div class="tb-strip">
-      <span class="tb-chip" id="tbStatus"><i></i> لم يتم تسجيل الحضور</span>
-      <span class="tb-meta">
-        <span id="empHeadJob">موظف</span>
-        <span class="tb-dot">•</span>
-        <span id="empHeadDate">—</span>
-      </span>
-    </div>
+    <span hidden id="empHeadJob">موظف</span>
+    <span hidden id="empHeadDate">—</span>
   </header>
 
   <main class="page">
@@ -369,6 +361,7 @@
         </div>
       </div>
       <div class="topbar-actions">
+        <span class="conn" title="حالة الاتصال"><i></i><b>متصل</b></span>
         <button id="admBell" class="icon-btn" title="الإشعارات">
           <svg class="ico"><use href="#i-bell"/></svg><span id="admBellBadge" class="badge" hidden>0</span>
         </button>
@@ -455,22 +448,57 @@
     <div class="pane" id="pane-emps">
       <div class="card">
         <div class="card-head"><h3><svg class="ico ico-head"><use href="#i-plus"/></svg> إضافة موظف</h3></div>
-        <form id="empForm" class="form-grid" autocomplete="off">
+        <form id="empForm" class="emp-form" autocomplete="off">
           <input type="hidden" id="empId" />
-          <label class="field"><span>الاسم الكامل *</span><input id="fName" type="text" required placeholder="محمد أحمد" /></label>
-          <label class="field"><span>الوظيفة</span><input id="fJob" type="text" placeholder="مدرس" /></label>
-          <label class="field"><span>رقم الهاتف *</span><input id="fPhone" type="tel" inputmode="numeric" required placeholder="01xxxxxxxxx" /></label>
-          <label class="field"><span>بداية الدوام</span><input id="fStart" type="time" /></label>
-          <label class="field"><span>نهاية الدوام</span><input id="fEnd" type="time" /></label>
-          <label class="field"><span>الحالة</span>
-            <select id="fActive" class="select"><option value="1">نشط</option><option value="0">موقوف</option></select>
-          </label>
-          <p class="hint" style="grid-column:1/-1;margin-bottom:8px">
-            الاسم ورقم الهاتف هما بيانات دخول الموظف. حدّد مواعيد دوامه (مثلاً 9 ← 5 أو 10 ← 6)
-            وكل ما يزيد عن هذه المدة يُحسب <b>وقتاً إضافياً</b> تلقائياً؛ اتركها فارغة لاستخدام دوام الشركة.
-          </p>
-          <div class="form-actions">
-            <button class="btn btn-primary" type="submit"><svg class="ico"><use href="#i-save"/></svg> <span id="empFormBtnLabel">حفظ</span></button>
+
+          <div class="ef-grid">
+            <label class="field">
+              <span>الاسم الكامل *</span>
+              <div class="input-icon">
+                <svg class="ico"><use href="#i-user"/></svg>
+                <input id="fName" type="text" required placeholder="محمد أحمد" />
+              </div>
+            </label>
+            <label class="field">
+              <span>رقم الهاتف *</span>
+              <div class="input-icon">
+                <svg class="ico"><use href="#i-phone"/></svg>
+                <input id="fPhone" type="tel" inputmode="numeric" required placeholder="01xxxxxxxxx" />
+              </div>
+            </label>
+            <label class="field">
+              <span>الوظيفة</span>
+              <div class="input-icon">
+                <svg class="ico"><use href="#i-briefcase"/></svg>
+                <input id="fJob" type="text" placeholder="مدرس" />
+              </div>
+            </label>
+            <label class="field">
+              <span>حالة الحساب</span>
+              <select id="fActive" class="select">
+                <option value="1">نشط — يستطيع تسجيل الحضور</option>
+                <option value="0">موقوف — لا يستطيع الدخول</option>
+              </select>
+            </label>
+          </div>
+
+          <div class="ef-shift">
+            <div class="ef-shift-head">
+              <svg class="ico"><use href="#i-clock"/></svg>
+              <b>مواعيد الدوام</b>
+              <span id="fShiftSum" class="ef-sum">دوام الشركة الافتراضي</span>
+            </div>
+            <div class="ef-times">
+              <label class="field"><span>من</span><input id="fStart" type="time" /></label>
+              <label class="field"><span>إلى</span><input id="fEnd" type="time" /></label>
+            </div>
+            <p class="hint">كل ما يزيد عن هذه المدة يُحسب <b>وقتاً إضافياً</b> تلقائياً.</p>
+          </div>
+
+          <div class="ef-actions">
+            <button class="btn btn-primary" type="submit">
+              <svg class="ico"><use href="#i-save"/></svg> <span id="empFormBtnLabel">حفظ الموظف</span>
+            </button>
             <button class="btn btn-ghost" type="button" id="empFormReset">إلغاء</button>
           </div>
         </form>
