@@ -8,7 +8,7 @@ import { getPublicIP, ipMatches } from "./network.js";
 import { DB_URL } from "./firebase.js";
 import {
   checkIn, checkOut, markAbsent, watchRecord, getMonth, summarize,
-  requiredMinOf, overtimeOf, logEvent
+  requiredMinOf, overtimeOf, logEvent, setRecord
 } from "./store.js";
 import { notify, askPermission, buzz } from "./notify.js";
 
@@ -415,14 +415,34 @@ async function checkNetworkExit() {
   LS.set(key, 1);
 
   const since = timeAr(today.checkIn);
+  const leftAt = instant();
+  const end = shiftEndMin();
+  const cur = now().getHours() * 60 + now().getMinutes();
+  const afterShift = end != null && cur >= end;          // غادر بعد انتهاء دوامه؟
+  const endLabel = EMP.workEnd || ST?.settings?.workEnd || "";
+
+  // نسجّل لحظة المغادرة في السجل ليستطيع المدير إغلاق اليوم عليها بدقة
+  setRecord(dateKey(), EMP.id, {
+    leftNetAt: leftAt.toISOString(), leftAfterShift: afterShift
+  }).catch(() => {});
+
   buzz([200, 90, 200]);
-  toast("خرجت من شبكة الشركة ولم تسجّل انصرافك", "err");
-  notify("⚠️ لم تسجّل انصرافك",
-    `${EMP.name}\nخرجت من شبكة الشركة ولم تسجّل انصرافك.\nحضورك مسجَّل منذ ${since} — سجّل الانصراف الآن ليُحتسب وقتك بدقة.`,
-    { tag: "left-net", sticky: true });
+  if (afterShift) {
+    toast("انتهى دوامك وغادرت — سجّل انصرافك", "ok");
+    notify("🔔 غادرت بعد انتهاء دوامك",
+      `${EMP.name}\nانتهى دوامك${endLabel ? " الساعة " + endLabel : ""} وغادرت المقر دون تسجيل انصراف.\n` +
+      `حضورك مسجَّل منذ ${since} — سجّل انصرافك ليُحتسب وقتك ووقتك الإضافي بدقة.`,
+      { tag: "left-net", sticky: true });
+  } else {
+    toast("خرجت من شبكة الشركة قبل انتهاء دوامك", "err");
+    notify("⚠️ خروج قبل انتهاء الدوام",
+      `${EMP.name}\nخرجت من شبكة الشركة قبل انتهاء دوامك ولم تسجّل انصرافك.\nحضورك مسجَّل منذ ${since}.`,
+      { tag: "left-net", sticky: true });
+  }
 
   logEvent({ type: "leftnet", empId: EMP.id, empName: EMP.name,
-             date: dateKey(), at: instant().toISOString(), checkIn: today.checkIn });
+             date: dateKey(), at: leftAt.toISOString(), checkIn: today.checkIn,
+             afterShift });
 }
 
 /** يفحص شبكة الجهاز ويسجّل الحضور تلقائياً إن كانت شبكة الشركة */

@@ -190,6 +190,7 @@ function paintToday() {
       <td>
         ${!r.checkIn && r.status !== "absent" ? `<button class="mini ok" data-act="in" data-id="${emp.id}"><svg class="ico"><use href="#i-check"/></svg> حضر</button>` : ""}
         ${r.checkIn && !r.checkOut ? `<button class="mini warn" data-act="out" data-id="${emp.id}"><svg class="ico"><use href="#i-out"/></svg> انصرف</button>` : ""}
+        ${r.checkIn && !r.checkOut && r.leftNetAt ? `<button class="mini ok" data-act="closeleft" data-id="${emp.id}" title="إنهاء اليوم على لحظة مغادرته المقر"><svg class="ico"><use href="#i-wifi-off"/></svg> أنهِ عند ${timeAr(r.leftNetAt)}</button>` : ""}
         ${r.status !== "absent" ? `<button class="mini danger" data-act="abs" data-id="${emp.id}"><svg class="ico"><use href="#i-ban"/></svg> غاب</button>` : ""}
         <button class="mini" data-act="edit" data-id="${emp.id}"><svg class="ico"><use href="#i-edit"/></svg> تعديل</button>
         ${r.checkIn || r.status === "absent" ? `<button class="mini" data-act="del" data-id="${emp.id}"><svg class="ico"><use href="#i-trash"/></svg> مسح</button>` : ""}
@@ -221,6 +222,23 @@ async function todayAction(act, empId) {
     logEvent({ type: "in", empId, empName: emp.name, date: curDate,
                at: new Date(ms).toISOString(), status: lateMin > 0 ? "late" : "present" });
     toast(`تم تسجيل حضور ${emp.name} — ${timeAr(ms)}`, "ok");
+    return;
+  }
+
+  // إنهاء اليوم على لحظة مغادرة الموظف للشبكة
+  if (act === "closeleft") {
+    const rec = dayRows.find(x => x.empId === empId);
+    if (!rec || !rec.leftNetAt) { toast("لا توجد لحظة مغادرة مسجَّلة", "err"); return; }
+    const ms = toDate(rec.leftNetAt).getTime();
+    if (!confirm(`إنهاء يوم ${emp.name} على لحظة مغادرته المقر (${timeAr(rec.leftNetAt)})؟`)) return;
+    const workedMin = Math.max(0, Math.round((ms - toDate(rec.checkIn).getTime()) / 60000));
+    const comp = compensateLate(rec, workedMin, requiredMinOf(rec, st, emp));
+    await setRecord(curDate, empId, {
+      checkOut: new Date(ms).toISOString(), ...comp, closedFromNetworkExit: true
+    });
+    logEvent({ type: "out", empId, empName: emp.name, date: curDate,
+               at: new Date(ms).toISOString(), workedMin });
+    toast(`أُنهي يوم ${emp.name} عند ${timeAr(rec.leftNetAt)} — ${minToHuman(workedMin)}`, "ok");
     return;
   }
 
@@ -438,10 +456,13 @@ function onEvents(list) {
   const ul = $("#feedList");
   ul.innerHTML = list.map(ev => {
     const ico = { in: "i-in", out: "i-out", abs: "i-ban", leftnet: "i-wifi-off" }[ev.type] || "i-bell";
-    const cls = { in: "fi-in", out: "fi-out", abs: "fi-abs", leftnet: "fi-warn" }[ev.type] || "fi-in";
+    const cls = { in: "fi-in", out: "fi-out", abs: "fi-abs" }[ev.type]
+      || (ev.type === "leftnet" ? (ev.afterShift ? "fi-warn" : "fi-abs") : "fi-in");
     const txt = ev.type === "in" ? `سجّل حضوره${ev.status === "late" ? " (متأخر)" : ""} الساعة ${timeAr(ev.at)}`
       : ev.type === "out" ? `سجّل انصرافه الساعة ${timeAr(ev.at)} — ${minToHuman(ev.workedMin)}`
-      : ev.type === "leftnet" ? `<b class="warn-txt">خرج من شبكة الشركة دون تسجيل انصراف</b> — الساعة ${timeAr(ev.at)}`
+      : ev.type === "leftnet" ? (ev.afterShift
+          ? `غادر <b>بعد انتهاء دوامه</b> الساعة ${timeAr(ev.at)} دون تسجيل انصراف`
+          : `<b class="danger-txt">غادر قبل انتهاء دوامه</b> الساعة ${timeAr(ev.at)} دون تسجيل انصراف`)
       : `تم تسجيل غياب${ev.note ? " — " + esc(ev.note) : ""}`;
     return `<li><span class="fi ${cls}"><svg class="ico"><use href="#${ico}"/></svg></span><span><b>${esc(ev.empName || "")}</b> ${txt}<small>${relAr(ev.createdAt || ev.at)}</small></span></li>`;
   }).join("");
@@ -456,8 +477,10 @@ function onEvents(list) {
     if (ev.type === "in") notify("🟢 حضور جديد", `${ev.empName} سجّل حضوره الساعة ${timeAr(ev.at)}${ev.status === "late" ? " (متأخر)" : ""}`, { tag: "adm-" + ev.id });
     if (ev.type === "out") notify("🔴 انصراف", `${ev.empName} انصرف الساعة ${timeAr(ev.at)} — ${minToHuman(ev.workedMin)}`, { tag: "adm-" + ev.id });
     if (ev.type === "abs") notify("🚫 غياب", `${ev.empName} — ${dateAr(ev.date)}${ev.note ? "\n" + ev.note : ""}`, { tag: "adm-" + ev.id });
-    if (ev.type === "leftnet") notify("⚠️ خروج بلا انصراف",
-      `${ev.empName} خرج من شبكة الشركة الساعة ${timeAr(ev.at)} ولم يسجّل انصرافه` +
+    if (ev.type === "leftnet") notify(
+      ev.afterShift ? "🔔 غادر بعد انتهاء دوامه" : "⚠️ غادر قبل انتهاء دوامه",
+      `${ev.empName} غادر شبكة الشركة الساعة ${timeAr(ev.at)} ولم يسجّل انصرافه` +
+      (ev.afterShift ? " — بعد انتهاء دوامه" : " — قبل انتهاء دوامه") +
       (ev.checkIn ? `\nحضوره مسجَّل منذ ${timeAr(ev.checkIn)}` : ""),
       { tag: "adm-" + ev.id, sticky: true });
   }

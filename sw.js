@@ -1,5 +1,5 @@
 /* ===== Service Worker — تشغيل بدون إنترنت + الإشعارات ===== */
-const VERSION = "azhari-attendance-v6";
+const VERSION = "azhari-attendance-v7";
 const CFG_CACHE = "azhari-config";   // كاش دائم لإعدادات الحضور التلقائي
 const SHELL = [
   "./", "./index.html", "./manifest.webmanifest",
@@ -178,15 +178,30 @@ async function leftNetwork() {
     await c.put(markReq, new Response(JSON.stringify({ date: dk, done: true }),
       { headers: { "content-type": "application/json" } }));
 
+    const endStr = cfg.workEnd || S.workEnd || "17:00";
+    const endMin = toMin(endStr);
+    const curMin = now.getHours() * 60 + now.getMinutes();
+    const afterShift = endMin != null && curMin >= endMin;
+    const leftAtISO = new Date(ms).toISOString();
+
+    // نسجّل لحظة المغادرة ليستطيع المدير إنهاء اليوم عليها بدقة
+    await fetch(`${cfg.dbUrl}/attendance/${dk}/${cfg.empId}.json`, {
+      method: "PATCH",
+      body: JSON.stringify({ leftNetAt: leftAtISO, leftAfterShift: afterShift })
+    });
+
     await fetch(`${cfg.dbUrl}/events.json`, {
       method: "POST",
       body: JSON.stringify({ type: "leftnet", empId: cfg.empId, empName: cfg.empName,
-                             date: dk, at: new Date(ms).toISOString(),
-                             checkIn: rec.checkIn, createdAt: ms })
+                             date: dk, at: leftAtISO, checkIn: rec.checkIn,
+                             afterShift, createdAt: ms })
     });
 
-    await self.registration.showNotification("⚠️ لم تسجّل انصرافك", {
-      body: `${cfg.empName}\nخرجت من شبكة الشركة ولم تسجّل انصرافك.\nسجّل الانصراف الآن ليُحتسب وقتك بدقة.`,
+    await self.registration.showNotification(
+      afterShift ? "🔔 غادرت بعد انتهاء دوامك" : "⚠️ خروج قبل انتهاء الدوام", {
+      body: afterShift
+        ? `${cfg.empName}\nانتهى دوامك الساعة ${endStr} وغادرت المقر دون تسجيل انصراف.\nسجّل انصرافك ليُحتسب وقتك ووقتك الإضافي بدقة.`
+        : `${cfg.empName}\nخرجت من شبكة الشركة قبل انتهاء دوامك ولم تسجّل انصرافك.`,
       icon: "./icons/icon-192.png", badge: "./icons/icon-192.png",
       dir: "rtl", lang: "ar", tag: "left-net", requireInteraction: true,
       vibrate: [200, 90, 200]
