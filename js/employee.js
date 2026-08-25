@@ -6,11 +6,12 @@ import {
 } from "./utils.js";
 import { getPublicIP, ipMatches } from "./network.js";
 import { empPinHash, verifyEmpPin } from "./auth.js";
+import { startScan, parsePcCode, scannerSupported, cameraSupported } from "./scanner.js";
 import { DB_URL } from "./firebase.js";
 import {
   checkIn, checkOut, markAbsent, watchRecord, getMonth, summarize,
   requiredMinOf, overtimeOf, logEvent, setRecord, updateEmployee,
-  watchNotices, noticeFor
+  watchNotices, noticeFor, approvePcRequest, findPcRequestByCode
 } from "./store.js";
 import { notify, askPermission, buzz } from "./notify.js";
 
@@ -21,6 +22,8 @@ let autoTimer = null, autoBusy = false;
 let netWasOn = null, netMisses = 0;
 
 export function disposeEmployee() {
+  try { stopScan?.(); } catch {}
+  stopScan = null;
   unsubRec?.(); unsubNotices?.(); clearInterval(clockTimer); clearInterval(autoTimer);
   unsubRec = unsubNotices = clockTimer = autoTimer = null;
   window.removeEventListener("online", onBackOnline);
@@ -45,6 +48,7 @@ export function initEmployee(state, emp) {
   bindActions();
   bindPinForm();
   bindAutoStart();
+  bindScanner();
   watchMyNotices();
   bindPcConfirm();
   paintPinState();
@@ -347,6 +351,57 @@ export function statusTag(r) {
   if (r.checkOut)            return '<span class="tag t-out">انصرف</span>';
   if (r.checkIn)             return '<span class="tag t-present">حاضر</span>';
   return '<span class="tag t-off">—</span>';
+}
+
+/* ---------- ماسح رمز الكمبيوتر ---------- */
+let stopScan = null;
+
+function bindScanner() {
+  const card = $("#scanCard"); if (!card) return;
+  card.hidden = isDesktop();                 // الماسح للهاتف فقط
+  const modal = $("#scanModal"), st = $("#scanState"), msg = $("#scanMsg");
+  const show = (t, ok) => { msg.textContent = t; msg.className = "alert " + (ok ? "ok" : "error"); msg.hidden = false; };
+  const close = () => { stopScan?.(); stopScan = null; modal.hidden = true; msg.hidden = true; };
+
+  $("#scanClose").onclick = close;
+  modal.onclick = e => { if (e.target === modal) close(); };
+
+  $("#openScanner").onclick = async () => {
+    modal.hidden = false; msg.hidden = true;
+    st.className = "pill pill-idle"; st.textContent = "جارٍ تشغيل الكاميرا…";
+    if (!cameraSupported()) { st.textContent = "الكاميرا غير متاحة — استخدم الرمز اليدوي"; return; }
+    try {
+      stopScan = await startScan($("#scanVideo"),
+        v => { st.className = "pill pill-in"; st.textContent = "تم المسح — جارٍ الربط…"; linkPc(v); },
+        e => { st.className = "pill pill-late"; st.textContent = e; });
+      if (scannerSupported()) st.textContent = "وجّه الكاميرا نحو الرمز…";
+    } catch (e) {
+      st.className = "pill pill-abs";
+      st.textContent = String(e && e.name) === "NotAllowedError"
+        ? "لم يُسمح باستخدام الكاميرا — فعّل الإذن أو أدخل الرمز يدوياً"
+        : "تعذّر تشغيل الكاميرا — أدخل الرمز يدوياً";
+    }
+  };
+
+  $("#scanCodeForm").onsubmit = e => { e.preventDefault(); linkPc($("#scanCode").value); };
+
+  async function linkPc(text) {
+    const parsed = parsePcCode(text);
+    if (!parsed) { show("رمز غير صالح", false); return; }
+    let { pcId, code } = parsed;
+    if (!pcId) {
+      const found = await findPcRequestByCode(code);
+      if (!found) { show("لا يوجد كمبيوتر ينتظر هذا الرمز — حدّث الصفحة على الكمبيوتر", false); return; }
+      pcId = found.pcId;
+    }
+    const r = await approvePcRequest(pcId, code, EMP);
+    if (!r.ok) { show(r.error, false); st.className = "pill pill-abs"; st.textContent = "لم يتم الربط"; return; }
+    stopScan?.(); stopScan = null;
+    show("تم ربط الكمبيوتر بحسابك ✅ افتح الشاشة عليه الآن", true);
+    st.className = "pill pill-in"; st.textContent = "تم الربط بنجاح";
+    buzz(); toast("تم ربط جهاز الكمبيوتر ✅", "ok");
+    setTimeout(() => { modal.hidden = true; msg.hidden = true; }, 2600);
+  }
 }
 
 /* ---------- إشعارات الإدارة ---------- */

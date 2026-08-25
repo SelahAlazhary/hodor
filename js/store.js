@@ -238,6 +238,21 @@ export async function approvePcRequest(pcId, code, emp) {
   return { ok: true };
 }
 
+/** يبحث عن جهاز كمبيوتر ينتظر الربط بهذا الرمز (للإدخال اليدوي) */
+export async function findPcRequestByCode(code) {
+  try {
+    const snap = await get(ref(db, PATH.devices));
+    const all = snap.val() || {};
+    const want = String(code).trim().toUpperCase();
+    for (const [id, d] of Object.entries(all)) {
+      const l = d && d.pcLink;
+      if (l && String(l.code).toUpperCase() === want && l.status === "pending"
+          && (!l.exp || nowMs() <= Number(l.exp))) return { pcId: id, code: want };
+    }
+    return null;
+  } catch { return null; }
+}
+
 /** (الكمبيوتر) ينهي الطلب بعد الدخول */
 export async function clearPcRequest(pcId = deviceId()) {
   try { await remove(ref(db, `${PATH.devices}/${pcId}/pcLink`)); } catch {}

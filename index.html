@@ -121,6 +121,7 @@
           وسيعمل حسابك على الجهازين معاً.
         </p>
         <div class="qr-frame pc-qr"><img id="pcQrImg" alt="رمز الدخول" /></div>
+        <div class="pc-code">الرمز: <b id="pcCodeText">——</b></div>
         <div id="pcQrState" class="pill pill-idle">بانتظار المسح من هاتفك…</div>
         <div class="pc-login-steps">
           <span>1) افتح كاميرا هاتفك</span>
@@ -293,6 +294,17 @@
         </div>
       </div>
       <div id="statusPill" class="pill pill-idle">لم يتم تسجيل الحضور بعد</div>
+    </div>
+
+    <div id="scanCard" class="scan-card" hidden>
+      <span class="scan-ico"><svg class="ico"><use href="#i-monitor"/></svg></span>
+      <div>
+        <b>ربط جهاز كمبيوتر</b>
+        <span>امسح الرمز الظاهر على شاشة الكمبيوتر لتفتح حسابك عليه</span>
+      </div>
+      <button id="openScanner" class="btn btn-primary btn-xs">
+        <svg class="ico"><use href="#i-eye"/></svg> مسح الرمز
+      </button>
     </div>
 
     <div id="empInstallCard" class="install-card" hidden>
@@ -856,6 +868,28 @@
     </div>
   </main>
 </section>
+
+<div id="scanModal" class="modal" hidden>
+  <div class="modal-card scan-modal">
+    <div class="modal-head">
+      <h3><svg class="ico ico-head"><use href="#i-monitor"/></svg> مسح رمز الكمبيوتر</h3>
+      <button id="scanClose" class="icon-btn"><svg class="ico"><use href="#i-close"/></svg></button>
+    </div>
+    <div class="scan-view">
+      <video id="scanVideo" muted playsinline></video>
+      <div class="scan-frame"></div>
+    </div>
+    <div id="scanState" class="pill pill-idle">وجّه الكاميرا نحو الرمز…</div>
+    <div class="scan-manual">
+      <span>أو أدخل الرمز الظاهر تحت الصورة على الكمبيوتر:</span>
+      <form id="scanCodeForm" autocomplete="off">
+        <input id="scanCode" type="text" maxlength="10" placeholder="مثال: 8EIO3N" />
+        <button class="btn btn-primary btn-xs" type="submit">ربط</button>
+      </form>
+    </div>
+    <div id="scanMsg" class="alert" hidden></div>
+  </div>
+</div>
 
 <div id="pcApproveModal" class="modal" hidden>
   <div class="modal-card">

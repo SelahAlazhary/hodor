@@ -300,6 +300,7 @@ async function startPcLogin() {
     const code = await createPcRequest(pcId);
     const link = `${location.origin}${location.pathname}?pc=${pcId}.${code}`;
     img.src = `/api/qr?text=${encodeURIComponent(link)}&scale=6`;
+    $("#pcCodeText").textContent = code;
     st.textContent = "بانتظار المسح من هاتفك…";
 
     unsubPc?.();

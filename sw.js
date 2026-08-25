@@ -1,11 +1,11 @@
 /* ===== Service Worker — تشغيل بدون إنترنت + الإشعارات ===== */
-const VERSION = "spotlight-v10";
+const VERSION = "spotlight-v11";
 const CFG_CACHE = "azhari-config";   // كاش دائم لإعدادات الحضور التلقائي
 const SHELL = [
   "./", "./index.html", "./manifest.webmanifest",
   "./css/app.css",
   "./js/app.js", "./js/utils.js", "./js/store.js",
-  "./js/firebase.js", "./js/notify.js", "./js/employee.js", "./js/admin.js", "./js/sound.js",
+  "./js/firebase.js", "./js/notify.js", "./js/employee.js", "./js/admin.js", "./js/sound.js", "./js/scanner.js",
   "./icons/icon-192-sl.png", "./icons/icon-512-sl.png"
 ];
 
