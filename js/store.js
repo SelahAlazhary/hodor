@@ -20,7 +20,12 @@ export const DEFAULT_SETTINGS = {
   adminPass: "azhari2026",
   checkinMode: "self",      // self | kiosk | both
   kioskDeviceId: "",
-  kioskDeviceName: ""
+  kioskDeviceName: "",
+  /* الحضور التلقائي عند الاتصال بشبكة الشركة */
+  autoCheckin: false,
+  networks: {},             // { "41_33_12_5": { ip, label, addedAt } }
+  autoWindowStart: "05:00",
+  autoWindowEnd: "23:59"
 };
 
 /* ================= الطابور المحلي ================= */
@@ -146,6 +151,16 @@ export function watchSettings(cb) {
 export function saveSettings(patch) {
   enqueue(PATH.settings, { ...patch, updatedAt: Date.now() });
   return Promise.resolve();
+}
+
+/** شبكات الشركة المعتمدة للحضور التلقائي */
+export function addNetwork(ip, label) {
+  const key = String(ip).replace(/[.:#$/\[\]]/g, "_");
+  enqueue(`${PATH.settings}/networks/${key}`, { ip: String(ip).trim(), label: label || "", addedAt: Date.now() });
+}
+export function removeNetwork(ip) {
+  const key = String(ip).replace(/[.:#$/\[\]]/g, "_");
+  enqueue(`${PATH.settings}/networks/${key}`, null);
 }
 
 /* ================= الموظفون ================= */

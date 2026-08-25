@@ -32,6 +32,7 @@ export const firebaseConfig = {
   measurementId: "G-0MWVH2QBPG"
 };
 
+export const DB_URL = firebaseConfig.databaseURL;
 export const app = initializeApp(firebaseConfig);
 export const db = getDatabase(app);
 

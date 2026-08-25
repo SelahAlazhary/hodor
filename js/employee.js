@@ -1,8 +1,10 @@
 /* ===== واجهة الموظف ===== */
 import {
   $, $$, esc, toast, clockStr, fullDateAr, dateKey, monthKey, dateAr, dayAr,
-  timeAr, minToHuman, minToHours, toDate, deviceId, LS
+  timeAr, minToHuman, minToHours, toDate, deviceId, hhmmToMin, LS
 } from "./utils.js";
+import { getPublicIP, ipMatches } from "./network.js";
+import { DB_URL } from "./firebase.js";
 import {
   checkIn, checkOut, markAbsent, watchRecord, getMonth, summarize,
   sendMessage, watchThread, markThreadRead
@@ -12,10 +14,13 @@ import { notify, askPermission, buzz } from "./notify.js";
 let ST = null, EMP = null;
 let unsubRec = null, unsubChat = null, clockTimer = null;
 let today = null, kioskTarget = null, lastMsgCount = 0, chatOpen = false;
+let autoTimer = null, autoBusy = false;
 
 export function disposeEmployee() {
-  unsubRec?.(); unsubChat?.(); clearInterval(clockTimer);
-  unsubRec = unsubChat = clockTimer = null;
+  unsubRec?.(); unsubChat?.(); clearInterval(clockTimer); clearInterval(autoTimer);
+  unsubRec = unsubChat = clockTimer = autoTimer = null;
+  window.removeEventListener("online", tryAutoCheckin);
+  document.removeEventListener("visibilitychange", onVisible);
   ST = EMP = today = kioskTarget = null;
   chatOpen = false; lastMsgCount = 0;
   document.removeEventListener("az:employees", onEmployeesChanged);
@@ -39,9 +44,19 @@ export function initEmployee(state, emp) {
 
   document.addEventListener("az:employees", onEmployeesChanged);
   document.addEventListener("az:settings", onSettingsChanged);
+
+  // الحضور التلقائي عند الاتصال بشبكة الشركة
+  paintAutoBar("", "جارٍ الفحص…");
+  tryAutoCheckin();
+  armBackgroundAuto();
+  autoTimer = setInterval(tryAutoCheckin, 4 * 60 * 1000);
+  window.addEventListener("online", tryAutoCheckin);
+  document.addEventListener("visibilitychange", onVisible);
 }
 
-function onSettingsChanged() { applyKiosk(); paintToday(); }
+function onVisible() { if (document.visibilityState === "visible") tryAutoCheckin(); }
+
+function onSettingsChanged() { applyKiosk(); paintToday(); paintAutoBar("", "جارٍ الفحص…"); tryAutoCheckin(); }
 
 function onEmployeesChanged(e) {
   const fresh = e.detail.find(x => x.id === EMP?.id);
@@ -50,10 +65,29 @@ function onEmployeesChanged(e) {
 }
 
 /* ---------- الساعة ---------- */
+const RING_TODAY = 540.35, RING_MONTH = 207.35;
+
+/** حلقة SVG توضّح نسبة إنجاز دوام اليوم */
+function paintGauge() {
+  const ring = $("#todayRing"), pct = $("#todayPct");
+  if (!ring) return;
+  const dailyMin = Math.max(30, (Number(ST?.settings?.dailyHours) || 8) * 60);
+  let worked = 0;
+  if (today?.checkIn) {
+    const end = today.checkOut ? toDate(today.checkOut) : new Date();
+    worked = Math.max(0, (end - toDate(today.checkIn)) / 60000);
+  }
+  const p = Math.max(0, Math.min(1, worked / dailyMin));
+  ring.style.strokeDashoffset = RING_TODAY * (1 - p);
+  pct.textContent = today?.status === "absent" ? "غياب اليوم"
+    : today?.checkIn ? `${Math.round(p * 100)}% من دوام اليوم` : "لم يبدأ الدوام";
+}
+
 function startClock() {
   const tick = () => {
     $("#bigClock").textContent = clockStr();
     $("#bigDate").textContent = fullDateAr();
+    paintGauge();
   };
   tick();
   clockTimer = setInterval(tick, 1000);
@@ -95,7 +129,7 @@ function applyKiosk() {
 function watchToday() {
   unsubRec?.();
   const t = currentTarget();
-  unsubRec = watchRecord(dateKey(), t.id, rec => { today = rec; paintToday(); });
+  unsubRec = watchRecord(dateKey(), t.id, rec => { today = rec; paintToday(); paintGauge(); });
 }
 
 function paintToday() {
@@ -189,6 +223,13 @@ async function loadHistory() {
 
   const s = summarize(rows);
   $("#stMonthHours").textContent = s.hours;
+
+  // حلقة SVG: نسبة الساعات المنجزة إلى المطلوبة عن أيام الحضور
+  const daily = Number(ST?.settings?.dailyHours) || 8;
+  const target = daily * Math.max(1, s.days);
+  const ring = $("#monthRing");
+  if (ring) ring.style.strokeDashoffset = RING_MONTH * (1 - Math.max(0, Math.min(1, s.hours / target)));
+
   $("#stDays").textContent = s.days;
   $("#stLate").textContent = s.late;
   $("#stAbsent").textContent = s.absent;
@@ -212,6 +253,76 @@ export function statusTag(r) {
   if (r.checkOut)            return '<span class="tag t-out">انصرف</span>';
   if (r.checkIn)             return '<span class="tag t-present">حاضر</span>';
   return '<span class="tag t-off">—</span>';
+}
+
+/* ---------- الحضور التلقائي عبر شبكة الشركة ---------- */
+const autoNets = () => Object.values(ST?.settings?.networks || {});
+
+function autoEnabled() {
+  const s = ST?.settings || {};
+  return !!s.autoCheckin && autoNets().length > 0 && !kioskTarget
+      && (s.checkinMode === "self" || s.checkinMode === "both");
+}
+
+function paintAutoBar(state, msg) {
+  const bar = $("#autoBar"); if (!bar) return;
+  bar.hidden = !autoEnabled();
+  if (bar.hidden) return;
+  const el = $("#autoState");
+  el.className = "auto-state" + (state ? " " + state : "");
+  el.textContent = msg;
+}
+
+/** يفحص شبكة الجهاز ويسجّل الحضور تلقائياً إن كانت شبكة الشركة */
+async function tryAutoCheckin() {
+  if (!autoEnabled() || autoBusy) { paintAutoBar("", "جارٍ الفحص…"); return; }
+  if (!navigator.onLine) { paintAutoBar("off", "لا يوجد اتصال"); return; }
+  if (today && (today.checkIn || today.status === "absent")) { paintAutoBar("on", "تم تسجيل حضورك اليوم"); return; }
+
+  const s = ST.settings;
+  const now = new Date(), cur = now.getHours() * 60 + now.getMinutes();
+  const from = hhmmToMin(s.autoWindowStart || "05:00"), to = hhmmToMin(s.autoWindowEnd || "23:59");
+  if (cur < from || cur > to) { paintAutoBar("off", "خارج وقت الفحص التلقائي"); return; }
+
+  autoBusy = true;
+  paintAutoBar("", "جارٍ فحص الشبكة…");
+  try {
+    const ip = await getPublicIP();
+    if (!ip) { paintAutoBar("off", "تعذّر تحديد الشبكة"); return; }
+    if (!ipMatches(ip, autoNets())) { paintAutoBar("off", "لست على شبكة الشركة"); return; }
+
+    const r = await checkIn(EMP, s, "auto-wifi");
+    if (!r.ok) { paintAutoBar("on", r.error || "تم التسجيل مسبقاً"); return; }
+    buzz();
+    const tm = timeAr(r.record.checkIn);
+    toast(`تم تسجيل حضورك تلقائياً الساعة ${tm} ✅`, "ok");
+    notify("✅ تم تسجيل الحضور تلقائياً",
+      `${EMP.name}
+عند اتصالك بشبكة الشركة
+وقت الحضور: ${tm}` +
+      (r.record.status === "late" ? `
+⚠ تأخير ${r.record.lateMin} دقيقة` : ""),
+      { tag: "auto-in", sticky: true });
+    paintAutoBar("on", "تم تسجيل الحضور تلقائياً");
+    loadHistory();
+  } finally { autoBusy = false; }
+}
+
+/** يزوّد الـ Service Worker بما يلزم ليسجّل الحضور والتطبيق مغلق (أندرويد/كروم) */
+async function armBackgroundAuto() {
+  try {
+    const reg = await navigator.serviceWorker?.ready;
+    if (!reg || !EMP) return;
+    (reg.active || reg.waiting)?.postMessage({
+      type: "az-auto-config",
+      config: { dbUrl: DB_URL, empId: EMP.id, empName: EMP.name, workStart: EMP.workStart || "" }
+    });
+    if ("periodicSync" in reg) {
+      const st = await navigator.permissions?.query({ name: "periodic-background-sync" }).catch(() => null);
+      if (!st || st.state === "granted")
+        await reg.periodicSync.register("az-auto-checkin", { minInterval: 15 * 60 * 1000 }).catch(() => {});
+    }
+  } catch {}
 }
 
 /* ---------- الشات مع المدير ---------- */

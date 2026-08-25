@@ -6,11 +6,12 @@ import {
 import {
   watchDay, getMonth, summarize, markAbsent, clearRecord, editTimes,
   addEmployee, updateEmployee, removeEmployee, setRecord,
-  saveSettings, watchEvents, clearEvents, watchDevices,
+  saveSettings, watchEvents, clearEvents, watchDevices, addNetwork, removeNetwork,
   sendMessage, watchAllMessages, markThreadRead
 } from "./store.js";
 import { notify, askPermission, notifState, buzz } from "./notify.js";
 import { statusTag } from "./employee.js";
+import { getPublicIP } from "./network.js";
 
 let ST = null;
 let unsubDay = null, unsubEvents = null, unsubMsgs = null, unsubDevices = null;
@@ -99,6 +100,16 @@ function paintDash() {
   $("#kAbsent").textContent = notIn;   // من لم يسجّل حضوراً (يشمل المسجّلين كغياب)
   $("#kOut").textContent = out.length;
   $("#kHours").textContent = minToHours(mins);
+
+  // حلقة SVG لنسبة الحضور اليوم
+  const RATE_C = 414.69;
+  const rate = emps.length ? present.length / emps.length : 0;
+  const ring = $("#attRing");
+  if (ring) ring.style.strokeDashoffset = RATE_C * (1 - Math.max(0, Math.min(1, rate)));
+  $("#attPct").textContent = Math.round(rate * 100) + "%";
+  $("#lgPresent").textContent = present.length - late.length;
+  $("#lgLate").textContent = late.length;
+  $("#lgAbsent").textContent = notIn;
 }
 
 /* ---------- جدول اليوم ---------- */
@@ -138,15 +149,15 @@ function paintToday() {
 
   tb.innerHTML = rows.map(({ emp, r }) => `
     <tr>
-      <td><b>${esc(emp.name)}</b><br><small style="color:var(--muted)">${esc(emp.job || "")}</small></td>
+      <td><b>${esc(emp.name)}</b><br><span class="sub">${esc(emp.job || "")}</span></td>
       <td>${r.checkIn ? timeAr(r.checkIn) : "—"}</td>
       <td>${r.checkOut ? timeAr(r.checkOut) : "—"}</td>
       <td>${r.checkOut ? minToHuman(r.workedMin) : (r.checkIn ? "جارٍ" : "—")}</td>
       <td>${statusTag(r)}</td>
       <td>
-        ${r.status !== "absent" ? `<button class="mini danger" data-act="abs" data-id="${emp.id}">غياب</button>` : ""}
-        <button class="mini" data-act="edit" data-id="${emp.id}">تعديل</button>
-        ${r.checkIn || r.status === "absent" ? `<button class="mini" data-act="del" data-id="${emp.id}">مسح</button>` : ""}
+        ${r.status !== "absent" ? `<button class="mini danger" data-act="abs" data-id="${emp.id}"><svg class="ico"><use href="#i-ban"/></svg> غياب</button>` : ""}
+        <button class="mini" data-act="edit" data-id="${emp.id}"><svg class="ico"><use href="#i-edit"/></svg> تعديل</button>
+        ${r.checkIn || r.status === "absent" ? `<button class="mini" data-act="del" data-id="${emp.id}"><svg class="ico"><use href="#i-trash"/></svg> مسح</button>` : ""}
       </td>
     </tr>`).join("");
 
@@ -210,7 +221,7 @@ function bindEmployees() {
 }
 function resetEmpForm() {
   $("#empForm").reset(); $("#empId").value = "";
-  $("#empForm").querySelector('button[type="submit"]').textContent = "حفظ";
+  $("#empFormBtnLabel").textContent = "حفظ";
 }
 
 function paintEmployees() {
@@ -226,9 +237,9 @@ function paintEmployees() {
       <td>${e.workStart || "—"} → ${e.workEnd || "—"}</td>
       <td>${e.active === false ? '<span class="tag t-absent">موقوف</span>' : '<span class="tag t-present">نشط</span>'}</td>
       <td>
-        <button class="mini" data-e="edit" data-id="${e.id}">تعديل</button>
-        <button class="mini" data-e="chat" data-id="${e.id}">رسالة</button>
-        <button class="mini danger" data-e="del" data-id="${e.id}">حذف</button>
+        <button class="mini" data-e="edit" data-id="${e.id}"><svg class="ico"><use href="#i-edit"/></svg> تعديل</button>
+        <button class="mini" data-e="chat" data-id="${e.id}"><svg class="ico"><use href="#i-chat"/></svg> رسالة</button>
+        <button class="mini danger" data-e="del" data-id="${e.id}"><svg class="ico"><use href="#i-trash"/></svg> حذف</button>
       </td>
     </tr>`).join("");
 
@@ -238,7 +249,7 @@ function paintEmployees() {
       $("#empId").value = emp.id; $("#fName").value = emp.name; $("#fJob").value = emp.job || "";
       $("#fPhone").value = emp.phone || ""; $("#fStart").value = emp.workStart || "";
       $("#fEnd").value = emp.workEnd || ""; $("#fActive").value = emp.active === false ? "0" : "1";
-      $("#empForm").querySelector('button[type="submit"]').textContent = "تحديث";
+      $("#empFormBtnLabel").textContent = "تحديث";
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
     if (b.dataset.e === "del") {
@@ -281,7 +292,7 @@ async function loadReport() {
       <td>${x.s.late}</td>
       <td><b style="color:var(--green)">${x.s.hours}</b> ساعة</td>
       <td>${minToHuman(x.s.avgMin)}</td>
-      <td><button class="mini" data-r="${x.id}">عرض</button></td>
+      <td><button class="mini" data-r="${x.id}"><svg class="ico"><use href="#i-eye"/></svg> عرض</button></td>
     </tr>`).join("");
   $("#repGrand").textContent = repRows.reduce((a, x) => a + x.s.hours, 0).toFixed(2);
 
@@ -305,13 +316,13 @@ async function loadReport() {
 function onEvents(list) {
   const ul = $("#feedList");
   ul.innerHTML = list.map(ev => {
-    const ico = { in: "🟢", out: "🔴", abs: "🚫", msg: "💬" }[ev.type] || "•";
+    const ico = { in: "i-in", out: "i-out", abs: "i-ban", msg: "i-chat" }[ev.type] || "i-bell";
     const cls = { in: "fi-in", out: "fi-out", abs: "fi-abs", msg: "fi-msg" }[ev.type] || "fi-in";
     const txt = ev.type === "in" ? `سجّل حضوره${ev.status === "late" ? " (متأخر)" : ""} الساعة ${timeAr(ev.at)}`
       : ev.type === "out" ? `سجّل انصرافه الساعة ${timeAr(ev.at)} — ${minToHuman(ev.workedMin)}`
       : ev.type === "abs" ? `تم تسجيل غياب${ev.note ? " — " + esc(ev.note) : ""}`
       : `أرسل رسالة: ${esc(ev.text || "")}`;
-    return `<li><span class="fi ${cls}">${ico}</span><span><b>${esc(ev.empName || "")}</b> ${txt}<small>${relAr(ev.createdAt || ev.at)}</small></span></li>`;
+    return `<li><span class="fi ${cls}"><svg class="ico"><use href="#${ico}"/></svg></span><span><b>${esc(ev.empName || "")}</b> ${txt}<small>${relAr(ev.createdAt || ev.at)}</small></span></li>`;
   }).join("");
   $("#feedEmpty").hidden = list.length > 0;
 
@@ -412,6 +423,39 @@ function fillSettings() {
   $("#sPass").value = s.adminPass || "";
   const mode = s.checkinMode || "self";
   $$('input[name="mode"]').forEach(r => r.checked = r.value === mode);
+
+  $("#sAuto").checked = !!s.autoCheckin;
+  $("#sAutoFrom").value = s.autoWindowStart || "05:00";
+  $("#sAutoTo").value = s.autoWindowEnd || "23:59";
+  paintNetworks();
+}
+
+/* ---------- شبكات الشركة للحضور التلقائي ---------- */
+function paintNetworks() {
+  const nets = Object.values(ST?.settings?.networks || {});
+  const tb = $("#netTable tbody");
+  if (!tb) return;
+  tb.innerHTML = nets.map(n => `
+    <tr>
+      <td><b>${esc(n.label || "شبكة الشركة")}</b></td>
+      <td><code>${esc(n.ip)}</code>${String(n.ip).endsWith(".") ? ' <span class="tag t-off">نطاق</span>' : ""}</td>
+      <td>${n.addedAt ? relAr(n.addedAt) : "—"}</td>
+      <td><button class="mini danger" data-net="${esc(n.ip)}"><svg class="ico"><use href="#i-trash"/></svg> حذف</button></td>
+    </tr>`).join("");
+  $("#netEmpty").hidden = nets.length > 0;
+  tb.querySelectorAll("button[data-net]").forEach(b => b.onclick = async () => {
+    if (!confirm(`حذف الشبكة ${b.dataset.net}؟`)) return;
+    await removeNetwork(b.dataset.net);
+    toast("تم حذف الشبكة", "ok");
+  });
+}
+
+async function showCurrentIP() {
+  const el = $("#curIP"); if (!el) return;
+  el.textContent = "جارٍ الفحص…";
+  const ip = await getPublicIP(true);
+  el.textContent = ip || "تعذّر تحديد العنوان";
+  el.dataset.ip = ip || "";
 }
 
 function bindSettings() {
@@ -434,6 +478,34 @@ function bindSettings() {
       toast("اختر الجهاز المعتمد من جدول الأجهزة بالأسفل");
   });
   $("#refreshDev").onclick = () => paintDevices();
+
+  $("#sAuto").onchange = async e => {
+    await saveSettings({ autoCheckin: e.target.checked });
+    toast(e.target.checked ? "تم تفعيل الحضور التلقائي ✅" : "تم إيقاف الحضور التلقائي", "ok");
+    if (e.target.checked && !Object.keys(ST.settings?.networks || {}).length)
+      toast("أضف شبكة الشركة أولاً حتى تعمل الميزة");
+  };
+  const saveWindow = async () => {
+    await saveSettings({
+      autoWindowStart: $("#sAutoFrom").value || "05:00",
+      autoWindowEnd: $("#sAutoTo").value || "23:59"
+    });
+    toast("تم حفظ وقت الفحص التلقائي", "ok");
+  };
+  $("#sAutoFrom").onchange = saveWindow;
+  $("#sAutoTo").onchange = saveWindow;
+
+  $("#addCurNet").onclick = async () => {
+    const el = $("#curIP");
+    let ip = el.dataset.ip;
+    if (!ip) { await showCurrentIP(); ip = el.dataset.ip; }
+    if (!ip) { toast("تعذّر تحديد عنوان الشبكة — تأكد من الاتصال بالإنترنت", "err"); return; }
+    const label = prompt("اسم الشبكة (للتوضيح فقط):", "واي فاي الشركة");
+    if (label === null) return;
+    await addNetwork(ip, label || "واي فاي الشركة");
+    toast(`تم اعتماد شبكة الشركة (${ip}) ✅`, "ok");
+  };
+  showCurrentIP();
   $("#admEnableNotif").onclick = async () => {
     const ok = await askPermission();
     $("#notifState").textContent = notifLabel();
@@ -452,10 +524,10 @@ function paintDevices() {
     <tr>
       <td>${esc(d.name || "جهاز")}</td>
       <td>${relAr(d.lastSeen)}</td>
-      <td><code style="font-size:11px">${esc(d.id)}</code></td>
+      <td><code>${esc(d.id)}</code></td>
       <td>${s.kioskDeviceId === d.id
-        ? `<span class="tag t-present">معتمد</span> <button class="mini danger" data-d="off" data-id="${d.id}">إلغاء</button>`
-        : `<button class="mini ok" data-d="on" data-id="${d.id}" data-name="${esc(d.name || "")}">اعتماد</button>`}</td>
+        ? `<span class="tag t-present">معتمد</span> <button class="mini danger" data-d="off" data-id="${d.id}"><svg class="ico"><use href="#i-close"/></svg> إلغاء</button>`
+        : `<button class="mini ok" data-d="on" data-id="${d.id}" data-name="${esc(d.name || "")}"><svg class="ico"><use href="#i-check"/></svg> اعتماد</button>`}</td>
     </tr>`).join("");
   $("#devEmpty").hidden = devices.length > 0;
 
