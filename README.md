@@ -25,16 +25,18 @@
 
 ## 1) تجهيز Firebase Realtime Database (خطوة إلزامية واحدة)
 
-التخزين كله في **Realtime Database** لمشروعك `hodor-abfe0`. القاعدة غير مُنشأة بعد، أنشئها هكذا:
+التخزين كله في **Realtime Database** لمشروعك `hodor-abfe0`، والقاعدة **مُنشأة وتعمل بالفعل** على العنوان:
 
-1. افتح [Realtime Database في Firebase](https://console.firebase.google.com/project/hodor-abfe0/database).
-2. اضغط **Create Database**.
-3. اختر المنطقة (الأفضل **United States (us-central1)** لأنها العنوان الافتراضي في الكود).
-4. اختر **Start in test mode** → **Enable**.
-5. من تبويب **Rules** الصق محتوى ملف [`database.rules.json`](database.rules.json) ثم **Publish**.
+```
+https://hodor-abfe0-default-rtdb.firebaseio.com
+```
 
-### لو اخترت منطقة غير أمريكا
-سيكون عنوان القاعدة مختلفاً (مثل `https://hodor-abfe0-default-rtdb.europe-west1.firebasedatabase.app`).
+يتبقّى شيء واحد مستحسن: من [Firebase Console](https://console.firebase.google.com/project/hodor-abfe0/database)
+→ تبويب **Rules** → الصق محتوى ملف [`database.rules.json`](database.rules.json) → **Publish**
+(قواعد وضع الاختبار تنتهي صلاحيتها بعد 30 يوماً، وهذه القواعد دائمة).
+
+### لو غيّرت القاعدة أو منطقتها لاحقاً
+سيكون العنوان مختلفاً (مثل `https://hodor-abfe0-default-rtdb.europe-west1.firebasedatabase.app`).
 لا تحتاج تعديل الكود — افتح رابط التطبيق مرة واحدة بهذا الشكل ويُحفظ العنوان في الجهاز:
 
 ```
