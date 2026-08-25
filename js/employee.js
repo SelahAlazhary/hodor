@@ -1,7 +1,7 @@
 /* ===== واجهة الموظف ===== */
 import {
-  $, $$, esc, toast, clockStr, fullDateAr, dateKey, monthKey, dateAr, dayAr,
-  timeAr, minToHuman, minToHours, toDate, deviceId, hhmmToMin, now, nowMs, clockSynced, clockOffset,
+  $, $$, esc, toast, fullDateAr, dateKey, monthKey, dateAr, dayAr,
+  timeAr, minToHuman, minToHours, toDate, deviceId, hhmmToMin, now, nowMs, clockParts, clockOffset,
   initials, LS
 } from "./utils.js";
 import { getPublicIP, ipMatches } from "./network.js";
@@ -116,14 +116,10 @@ function paintGauge() {
 
 function startClock() {
   const tick = () => {
-    $("#bigClock").textContent = clockStr();
+    const c = clockParts();
+    $("#bigClock").innerHTML = `${c.t}<span class="clk-ap">${c.ap}</span>`;
     $("#bigDate").textContent = fullDateAr();
     paintGreeting();
-    const src = $("#clockSrc");
-    if (src) {
-      src.textContent = clockSynced() ? "بتوقيت الخادم العالمي" : "بتوقيت الجهاز";
-      src.className = "clock-src" + (clockSynced() ? " synced" : "");
-    }
     paintGauge();
     checkoutReminder();
   };

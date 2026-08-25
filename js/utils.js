@@ -87,8 +87,18 @@ export function monthRange(mk) {
   const last = new Date(y, m, 0).getDate();
   return { start, end: `${y}-${p2(m)}-${p2(last)}`, days: last, y, m };
 }
+/** المؤقت بنظام 12 ساعة — يعيد { t: "01:42:15", ap: "م" } */
+export function clockParts(d = now()) {
+  const h24 = d.getHours();
+  const h = h24 % 12 || 12;
+  return {
+    t: `${p2(h)}:${p2(d.getMinutes())}:${p2(d.getSeconds())}`,
+    ap: h24 < 12 ? "ص" : "م"
+  };
+}
 export function clockStr(d = now()) {
-  return `${p2(d.getHours())}:${p2(d.getMinutes())}:${p2(d.getSeconds())}`;
+  const c = clockParts(d);
+  return `${c.t} ${c.ap}`;
 }
 /** عرض الوقت بنظام 24 ساعة بتوقيت القاهرة — مثل 17:05 */
 export function timeAr(v) {
