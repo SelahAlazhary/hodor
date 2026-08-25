@@ -4,6 +4,7 @@ import { getSettings, watchSettings, watchEmployees, findEmployee, registerDevic
          bindDevice, watchConnection, watchServerClock, flush, pendingCount } from "./store.js";
 import { askPermission } from "./notify.js";
 import { verifyAdmin } from "./auth.js";
+import { enhanceTimeInputs } from "./timepicker.js";
 import { initEmployee, disposeEmployee } from "./employee.js";
 import { initAdmin, disposeAdmin } from "./admin.js";
 
@@ -47,23 +48,71 @@ setInterval(paintNet, 4000);
 
 /* ---------- تثبيت التطبيق ---------- */
 let deferredPrompt = null;
+
+/** هل يعمل التطبيق مثبَّتاً (من الشاشة الرئيسية)؟ */
+export function isInstalled() {
+  return window.matchMedia("(display-mode: standalone)").matches
+      || window.matchMedia("(display-mode: fullscreen)").matches
+      || window.matchMedia("(display-mode: minimal-ui)").matches
+      || navigator.standalone === true
+      || document.referrer.startsWith("android-app://");
+}
+const isIOS = () => /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+const isPhone = () => /Android|iPad|iPhone|iPod|Mobile/i.test(navigator.userAgent);
+
+/** هل يجب إجبار هذا الجهاز على التثبيت قبل الدخول؟ */
+function mustInstall() {
+  const s = state.settings || {};
+  if (s.forceInstall === false) return false;
+  if (isInstalled() || !isPhone()) return false;
+  const dev = deviceId();
+  if (s.kioskDeviceId && s.kioskDeviceId === dev) return false;   // جهاز الكشك مستثنى
+  return true;
+}
+
 window.addEventListener("beforeinstallprompt", e => {
   e.preventDefault();
   deferredPrompt = e;
   const b = $("#installBtn"); if (b) b.hidden = false;
+  const n = $("#installNow"); if (n) n.hidden = false;
 });
-$("#installBtn")?.addEventListener("click", async () => {
-  if (!deferredPrompt) {
-    toast("من قائمة المتصفح اختر: إضافة إلى الشاشة الرئيسية");
-    return;
+
+async function runInstall() {
+  if (deferredPrompt) {
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    deferredPrompt = null;
+    if (outcome === "accepted") { toast("تم تثبيت التطبيق ✅", "ok"); return true; }
+    toast("لم يكتمل التثبيت — أعد المحاولة", "err");
+    return false;
   }
-  deferredPrompt.prompt();
-  const { outcome } = await deferredPrompt.userChoice;
-  if (outcome === "accepted") toast("تم تثبيت التطبيق ✅", "ok");
-  deferredPrompt = null;
-  $("#installBtn").hidden = true;
+  // آيفون أو متصفح لا يدعم الطلب المباشر: نعرض الخطوات
+  $("#iosSteps").hidden = !isIOS();
+  $("#androidSteps").hidden = isIOS();
+  toast(isIOS() ? "اتبع الخطوات الظاهرة بالأسفل" : "من قائمة المتصفح اختر: تثبيت التطبيق");
+  return false;
+}
+
+$("#installBtn")?.addEventListener("click", runInstall);
+$("#installNow")?.addEventListener("click", runInstall);
+$("#installRecheck")?.addEventListener("click", () => {
+  if (isInstalled()) { toast("تم التثبيت بنجاح ✅", "ok"); startSession(); }
+  else toast("ما زال التطبيق غير مثبَّت — افتحه من أيقونته على الشاشة الرئيسية", "err");
 });
-window.addEventListener("appinstalled", () => { $("#installBtn").hidden = true; });
+$("#installBack")?.addEventListener("click", () => { LS.del("az_session"); state.session = null; go("login"); });
+
+window.addEventListener("appinstalled", () => {
+  $("#installBtn").hidden = true;
+  toast("تم تثبيت التطبيق — افتحه من الشاشة الرئيسية ✅", "ok");
+});
+
+/** يعرض شاشة الإلزام بالتثبيت */
+function showInstallGate() {
+  $("#iosSteps").hidden = !isIOS();
+  $("#androidSteps").hidden = isIOS() || !!deferredPrompt;
+  $("#installNow").hidden = isIOS();
+  go("install");
+}
 
 /* ---------- التوجيه ---------- */
 export function go(view) {
@@ -192,6 +241,13 @@ $("#admLoginForm").addEventListener("submit", async e => {
   startSession();
 });
 
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible" && state.session?.role === "employee"
+      && $("#view-install")?.classList.contains("active") && isInstalled()) {
+    startSession();
+  }
+});
+
 /* ---------- إظهار/إخفاء كلمة المرور ---------- */
 document.addEventListener("click", e => {
   const b = e.target.closest("[data-pw]");
@@ -208,6 +264,7 @@ export function startSession() {
   if (!s) { go("login"); return; }
   if (s.role === "admin") { disposeEmployee(); go("admin"); initAdmin(state); }
   else {
+    if (mustInstall()) { showInstallGate(); return; }
     const emp = state.employees.find(e => e.id === s.empId);
     if (!emp && state.employees.length) { toast("لم يعد حسابك موجوداً", "err"); logout(); return; }
     const me = emp || { id: s.empId, name: s.name };
@@ -228,6 +285,7 @@ export function startSession() {
     hideBoot();
   };
   const fallback = setTimeout(showUI, 3000);
+  enhanceTimeInputs();                       // حقول الوقت بالعربية (صباحاً/مساءً)
 
   watchServerClock();            // مزامنة الوقت مع الساعة العالمية
   registerDevice().catch(() => {});
@@ -236,7 +294,6 @@ export function startSession() {
   watchSettings(s => {
     state.settings = s;
     document.title = `${s.company || "سلاح الأزهري"} — الحضور والانصراف`;
-    const c = $("#tbCompany"); if (c) c.textContent = s.company || "سلاح الأزهري";
     document.dispatchEvent(new CustomEvent("az:settings", { detail: s }));
   });
   getSettings().then(s => { if (!state.settings) state.settings = s; }).catch(() => {});

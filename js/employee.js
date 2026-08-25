@@ -20,7 +20,7 @@ let autoTimer = null, autoBusy = false;
 export function disposeEmployee() {
   unsubRec?.(); clearInterval(clockTimer); clearInterval(autoTimer);
   unsubRec = clockTimer = autoTimer = null;
-  window.removeEventListener("online", tryAutoCheckin);
+  window.removeEventListener("online", onBackOnline);
   document.removeEventListener("visibilitychange", onVisible);
   ST = EMP = today = kioskTarget = null;
   document.removeEventListener("az:employees", onEmployeesChanged);
@@ -35,6 +35,7 @@ export function initEmployee(state, emp) {
   $("#empHeadJob").textContent = emp.job || "موظف";
   $("#empAvatar").textContent = initials(emp.name);
   $("#empHeadDate").textContent = fullDateAr();
+  paintGreeting();
   $("#empMonth").value = monthKey();
 
   startClock();
@@ -51,11 +52,20 @@ export function initEmployee(state, emp) {
   tryAutoCheckin();
   armBackgroundAuto();
   autoTimer = setInterval(tryAutoCheckin, 4 * 60 * 1000);
-  window.addEventListener("online", tryAutoCheckin);
+  window.addEventListener("online", onBackOnline);
   document.addEventListener("visibilitychange", onVisible);
 }
 
 function onVisible() { if (document.visibilityState === "visible") tryAutoCheckin(); }
+
+/** عند عودة الاتصال: فحص فوري + تسجيل مزامنة خلفية تعمل والتطبيق مغلق */
+async function onBackOnline() {
+  tryAutoCheckin();
+  try {
+    const reg = await navigator.serviceWorker?.ready;
+    if (reg && "sync" in reg) await reg.sync.register("az-auto-checkin");
+  } catch {}
+}
 
 function onSettingsChanged() { applyKiosk(); paintToday(); paintAutoBar("", "جارٍ الفحص…"); tryAutoCheckin(); }
 
@@ -68,6 +78,16 @@ function onEmployeesChanged(e) {
     $("#empAvatar").textContent = initials(fresh.name);
   }
   applyKiosk();
+}
+
+/** تحية حسب وقت اليوم بتوقيت القاهرة */
+function paintGreeting() {
+  const el = $("#empGreet"); if (!el) return;
+  const h = now().getHours();
+  el.textContent = h < 5 ? "ليلة هادئة"
+    : h < 12 ? "صباح الخير"
+    : h < 16 ? "طاب يومك"
+    : h < 21 ? "مساء الخير" : "ليلة هادئة";
 }
 
 /* ---------- الساعة ---------- */
@@ -98,6 +118,7 @@ function startClock() {
   const tick = () => {
     $("#bigClock").textContent = clockStr();
     $("#bigDate").textContent = fullDateAr();
+    paintGreeting();
     const src = $("#clockSrc");
     if (src) {
       src.textContent = clockSynced() ? "بتوقيت الخادم العالمي" : "بتوقيت الجهاز";
@@ -355,6 +376,10 @@ async function armBackgroundAuto() {
       config: { dbUrl: DB_URL, empId: EMP.id, empName: EMP.name,
                 workStart: EMP.workStart || "", clockOffset: clockOffset() }
     });
+    // يفحص الشبكة فور عودة الاتصال حتى لو كان التطبيق مغلقاً
+    if ("sync" in reg) {
+      try { await reg.sync.register("az-auto-checkin"); } catch {}
+    }
     if ("periodicSync" in reg) {
       const st = await navigator.permissions?.query({ name: "periodic-background-sync" }).catch(() => null);
       if (!st || st.state === "granted")

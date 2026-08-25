@@ -13,6 +13,7 @@ import { notify, askPermission, notifState, buzz } from "./notify.js";
 import { statusTag } from "./employee.js";
 import { getPublicIP } from "./network.js";
 import { changeAdminPassword } from "./auth.js";
+import { refreshTimePickers, timeLabelAr } from "./timepicker.js";
 
 let ST = null;
 let unsubDay = null, unsubEvents = null, unsubDevices = null;
@@ -286,6 +287,7 @@ function bindEmployees() {
 }
 function resetEmpForm() {
   $("#empForm").reset(); $("#empId").value = "";
+  refreshTimePickers($("#empForm"));
   $("#empFormBtnLabel").textContent = "حفظ";
 }
 
@@ -299,7 +301,7 @@ function paintEmployees() {
       <td><b>${esc(e.name)}</b></td>
       <td>${esc(e.job || "—")}</td>
       <td>${esc(e.phone || "—")}</td>
-      <td>${e.workStart || "—"} → ${e.workEnd || "—"}</td>
+      <td>${e.workStart ? timeLabelAr(e.workStart) : "—"} <span class="sub">←</span> ${e.workEnd ? timeLabelAr(e.workEnd) : "—"}</td>
       <td>${e.boundDevice
         ? `<span class="tag t-present">مرتبط</span><br><span class="sub">${relAr(e.boundAt)}</span>`
         : '<span class="tag t-off">غير مرتبط</span>'}</td>
@@ -316,7 +318,8 @@ function paintEmployees() {
     if (b.dataset.e === "edit") {
       $("#empId").value = emp.id; $("#fName").value = emp.name; $("#fJob").value = emp.job || "";
       $("#fPhone").value = emp.phone || ""; $("#fStart").value = emp.workStart || "";
-      $("#fEnd").value = emp.workEnd || ""; $("#fActive").value = emp.active === false ? "0" : "1";
+      $("#fEnd").value = emp.workEnd || "";
+      refreshTimePickers($("#empForm")); $("#fActive").value = emp.active === false ? "0" : "1";
       $("#empFormBtnLabel").textContent = "تحديث";
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
@@ -455,9 +458,11 @@ function fillSettings() {
   const mode = s.checkinMode || "self";
   $$('input[name="mode"]').forEach(r => r.checked = r.value === mode);
 
+  $("#sForceInstall").checked = s.forceInstall !== false;
   $("#sAuto").checked = !!s.autoCheckin;
-  $("#sAutoFrom").value = s.autoWindowStart || "05:00";
-  $("#sAutoTo").value = s.autoWindowEnd || "23:59";
+  $("#sAutoFrom").value = s.autoWindowStart || "06:00";
+  $("#sAutoTo").value = s.autoWindowEnd || "17:30";
+  refreshTimePickers();
   paintNetworks();
 }
 
@@ -524,6 +529,11 @@ function bindSettings() {
   };
 
   $("#refreshDev").onclick = () => paintDevices();
+
+  $("#sForceInstall").onchange = async e => {
+    await saveSettings({ forceInstall: e.target.checked });
+    toast(e.target.checked ? "أصبح تثبيت التطبيق إلزامياً للموظفين" : "تم إلغاء إلزام التثبيت", "ok");
+  };
 
   $("#sAuto").onchange = async e => {
     await saveSettings({ autoCheckin: e.target.checked });

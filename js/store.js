@@ -24,6 +24,7 @@ export const DEFAULT_SETTINGS = {
   /* الحضور التلقائي عند الاتصال بشبكة الشركة */
   autoCheckin: false,
   networks: {},             // { "41_33_12_5": { ip, label, addedAt } }
+  forceInstall: true,
   autoWindowStart: "06:00",
   autoWindowEnd: "17:30"
 };
