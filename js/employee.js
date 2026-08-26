@@ -684,12 +684,12 @@ async function maybeAutoCheckout() {
   try {
     const r = await autoCheckout(t, s);
     if (r.ok) {
-      buzz([100, 50, 100, 50, 160]);
-      toast(`انتهى دوامك — تم تسجيل انصرافك تلقائياً (${minToHuman(r.record.workedMin)})`, "ok");
-      notify("🔴 انصراف تلقائي",
+      buzz([300, 120, 300, 120, 300]);
+      toast(`انتهى شفتك — تم تسجيل انصرافك تلقائياً (${minToHuman(r.record.workedMin)})`, "ok");
+      notify("🔴 انتهى شفتك — تم تسجيل انصرافك",
         `${t.name}
-انتهى دوامك — سُجّل انصرافك تلقائياً
-إجمالي اليوم: ${minToHuman(r.record.workedMin)}`,
+خرجت من الشفت الساعة ${timeAr(r.record.checkOut)}
+إجمالي ساعات اليوم: ${minToHuman(r.record.workedMin)}`,
         { tag: "auto-out", sticky: true, sound: "out" });
       loadHistory();
     } else {

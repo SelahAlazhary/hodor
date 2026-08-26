@@ -1,5 +1,5 @@
 /* ===== Service Worker — تشغيل بدون إنترنت + الإشعارات ===== */
-const VERSION = "spotlight-v15";
+const VERSION = "spotlight-v16";
 const CFG_CACHE = "azhari-config";   // كاش دائم لإعدادات الحضور التلقائي
 const SHELL = [
   "./", "./index.html", "./manifest.webmanifest",
@@ -253,11 +253,15 @@ async function checkoutDue() {
       await fetch(`${cfg.dbUrl}/events.json`, { method: "POST", body: JSON.stringify({
         type: "out", empId: cfg.empId, empName: cfg.empName, date: dk,
         at: new Date(outMs).toISOString(), workedMin, auto: true, createdAt: Date.now() }) });
-      let h = new Date(outMs); const hh = h.getHours();
-      await self.registration.showNotification("🔴 انصراف تلقائي", {
-        body: `${cfg.empName}\nانتهى دوامك — سُجّل انصرافك تلقائياً`,
+      const H = Math.floor(workedMin / 60), M = workedMin % 60;
+      const dur = M ? `${H} س ${M} د` : `${H} س`;
+      const oh = new Date(outMs), eh = oh.getHours(), em = p2(oh.getMinutes());
+      const outLbl = `${p2(eh % 12 || 12)}:${em} ${eh < 12 ? "ص" : "م"}`;
+      await self.registration.showNotification("🔴 انتهى شفتك — تم تسجيل انصرافك", {
+        body: `${cfg.empName}\nخرجت من الشفت الساعة ${outLbl}\nإجمالي ساعات اليوم: ${dur}`,
         icon: "./icons/icon-192-sl.png", badge: "./icons/icon-192-sl.png",
-        dir: "rtl", lang: "ar", silent: false, tag: "auto-out", vibrate: [120, 60, 120] });
+        dir: "rtl", lang: "ar", silent: false, renotify: true, requireInteraction: true,
+        tag: "auto-out", vibrate: [300, 120, 300, 120, 300] });
       return;
     }
 
