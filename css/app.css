@@ -865,3 +865,21 @@ code{font-size:11px;background:var(--line-2);padding:2px 6px;border-radius:6px;d
   display:inline-block;background:var(--green-100);border-radius:10px;padding:3px 12px;
   margin-inline-start:6px;
 }
+
+/* ═══════════ المراقبة ═══════════ */
+.mon-emps{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.mon-emp{border:1.5px solid var(--line);background:#fff;border-radius:14px;padding:12px;cursor:pointer;
+  text-align:center;transition:.15s var(--ease)}
+.mon-emp:hover{border-color:var(--green-500)}
+.mon-emp.active{border-color:var(--green-600);background:var(--green-50)}
+.mon-emp b{display:block;font-size:13.5px;margin-top:4px}
+.mon-emp small{font-size:11px;color:var(--muted)}
+.mon-dot{width:9px;height:9px;border-radius:50%;background:#c4c4c4;display:inline-block}
+.mon-dot.on{background:#2ecc71;box-shadow:0 0 0 3px rgba(46,204,113,.2);animation:blip 2s infinite}
+.mon-shots{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px}
+.shot{margin:0;border:1px solid var(--line);border-radius:12px;overflow:hidden;cursor:pointer;background:#000}
+.shot img{width:100%;display:block;aspect-ratio:16/10;object-fit:cover}
+.shot figcaption{font-size:11px;color:var(--muted);background:#fff;padding:5px 8px;text-align:center}
+.shot-modal{max-width:900px}
+.shot-modal img{width:100%;border-radius:12px;display:block}
+.screen-share-hint{font-size:11.5px;color:var(--muted)}

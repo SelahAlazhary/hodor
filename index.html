@@ -418,6 +418,21 @@
       <div id="empPinMsg" class="alert" hidden></div>
     </div>
 
+    <div class="card" id="screenCard" hidden>
+      <div class="card-head"><h3><svg class="ico ico-head"><use href="#i-monitor"/></svg> مراقبة الشاشة أثناء الدوام</h3>
+        <span id="screenState" class="tag t-off">متوقفة</span>
+      </div>
+      <p class="hint">
+        تطلب الإدارة مشاركة شاشتك أثناء الدوام. اضغط الزر ووافق على مشاركة
+        <b>الشاشة كاملة</b> — تُلتقط صور في أوقات عشوائية وتُرسل للإدارة، ويظهر مؤشّر المشاركة
+        من المتصفح طوال الوقت. تتوقف تلقائياً عند تسجيل الانصراف.
+      </p>
+      <div class="row-gap wrap">
+        <button id="screenStart" class="btn btn-primary btn-xs"><svg class="ico"><use href="#i-eye"/></svg> بدء مشاركة الشاشة</button>
+        <button id="screenStop" class="btn btn-ghost btn-xs" hidden><svg class="ico"><use href="#i-close"/></svg> إيقاف</button>
+      </div>
+    </div>
+
     <div class="card" id="autoStartCard" hidden>
       <div class="card-head"><h3><svg class="ico ico-head"><use href="#i-refresh"/></svg> تشغيل التطبيق تلقائياً مع الكمبيوتر</h3></div>
       <p class="hint">اختر الطريقة الأسهل لك — بعدها يفتح التطبيق نفسه بعد كل إعادة تشغيل.</p>
@@ -492,6 +507,7 @@
     <button class="navbtn" data-pane="emps"><svg class="ico"><use href="#i-users"/></svg> الموظفون</button>
     <button class="navbtn" data-pane="report"><svg class="ico"><use href="#i-report"/></svg> التقرير الشهري</button>
     <button class="navbtn" data-pane="notice"><svg class="ico"><use href="#i-bell"/></svg> إرسال إشعار</button>
+    <button class="navbtn" data-pane="monitor"><svg class="ico"><use href="#i-monitor"/></svg> المراقبة</button>
     <button class="navbtn" data-pane="settings"><svg class="ico"><use href="#i-gear"/></svg> الإعدادات</button>
   </nav>
 
@@ -708,6 +724,21 @@
       </div>
     </div>
 
+    <!-- المراقبة -->
+    <div class="pane" id="pane-monitor">
+      <div class="card">
+        <div class="card-head"><h3><svg class="ico ico-head"><use href="#i-monitor"/></svg> مراقبة شاشات الموظفين (الكمبيوتر)</h3></div>
+        <p class="hint">لقطات عشوائية من أجهزة الموظفين الذين شاركوا شاشاتهم أثناء الدوام. اضغط على الموظف لعرض لقطاته.</p>
+        <div id="monEmps" class="mon-emps"></div>
+      </div>
+      <div class="card" id="monShotsCard" hidden>
+        <div class="card-head"><h3>لقطات <span id="monName"></span></h3>
+          <button id="monClear" class="btn btn-ghost btn-xs"><svg class="ico"><use href="#i-trash"/></svg> مسح</button></div>
+        <div id="monShots" class="mon-shots"></div>
+        <div id="monEmpty" class="empty">لا توجد لقطات لهذا الموظف بعد</div>
+      </div>
+    </div>
+
     <!-- الإعدادات -->
     <div class="pane" id="pane-settings">
       <div class="card">
@@ -796,6 +827,25 @@
           <b>تلقائياً عند اتصاله بشبكة الشركة</b>، أو من <b>جهاز الاستقبال (الكشك)</b>،
           أو يدوياً منك عبر زر «حضر» في <b>حضور اليوم</b>.
           <span id="manualWarn" class="warn-line" hidden></span>
+        </p>
+        <label class="field" style="max-width:280px">
+          <span>يبدأ قبول الحضور قبل الشفت بـ (دقيقة)</span>
+          <input id="sEarlyCheckin" type="number" min="0" max="240" />
+        </label>
+        <p class="hint">لا يُقبل أي تسجيل حضور قبل هذا الوقت — يمنع التسجيل المبكر جداً.</p>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h3><svg class="ico ico-head"><use href="#i-monitor"/></svg> مراقبة شاشات الكمبيوتر</h3></div>
+        <label class="switch-row">
+          <input type="checkbox" id="sScreenMonitor" />
+          <span class="switch"></span>
+          <b>تفعيل مراقبة شاشات الموظفين على الكمبيوتر</b>
+        </label>
+        <p class="hint">
+          عند التفعيل يُطلب من كل موظف يعمل على كمبيوتر مشاركة شاشته أثناء الدوام،
+          فتُلتقط صور في أوقات عشوائية وتظهر لك في لسان <b>المراقبة</b>.
+          يُظهر المتصفح مؤشّر مشاركة دائماً — لا يمكن التقاط الشاشة خُفية.
         </p>
       </div>
 
@@ -926,6 +976,14 @@
         <button id="qrCopy" class="btn btn-ghost btn-xs">نسخ</button>
       </div>
     </div>
+  </div>
+</div>
+
+<div id="shotModal" class="modal" hidden>
+  <div class="modal-card shot-modal">
+    <div class="modal-head"><h3 id="shotTime">لقطة</h3>
+      <button id="shotClose" class="icon-btn"><svg class="ico"><use href="#i-close"/></svg></button></div>
+    <img id="shotBig" alt="لقطة الشاشة" />
   </div>
 </div>
 

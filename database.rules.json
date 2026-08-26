@@ -24,6 +24,7 @@
     "employees":  { ".read": true, ".write": true },
     "bindTokens": { ".read": true, ".write": true },
     "notices":    { ".read": true, ".write": true },
+    "screenshots":{ ".read": true, ".write": true },
     "attendance": { ".read": true, ".write": true },
     "events":     { ".read": true, ".write": true },
     "devices":    { ".read": true, ".write": true }

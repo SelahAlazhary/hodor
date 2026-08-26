@@ -25,7 +25,9 @@ export const DEFAULT_SETTINGS = {
   /* الحضور التلقائي عند الاتصال بشبكة الشركة */
   autoCheckin: false,
   networks: {},             // { "41_33_12_5": { ip, label, addedAt } }
-  manualCheckin: false,      // زر «تسجيل حضور» مخفي عن الموظف افتراضياً
+  manualCheckin: false,
+  earlyCheckinMin: 60,        // يُسمح بتسجيل الحضور قبل بدء الشفت بهذا العدد من الدقائق فقط
+  screenMonitor: false,       // مراقبة شاشات الكمبيوتر بلقطات عشوائية      // زر «تسجيل حضور» مخفي عن الموظف افتراضياً
   forceInstall: true,
   autoWindowStart: "06:00",
   autoWindowEnd: "17:30"

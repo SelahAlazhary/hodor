@@ -11,6 +11,7 @@ import {
   saveSettings, watchEvents, clearEvents, watchDevices, addNetwork, removeNetwork, logEvent,
   removeDeviceEntry, createBindToken, sendNotice, watchNotices, removeNotice, releasePcDevice
 } from "./store.js";
+import { watchScreens, clearScreens } from "./screen.js";
 import { notify, askPermission, notifState, buzz } from "./notify.js";
 import { statusTag } from "./employee.js";
 import { getPublicIP } from "./network.js";
@@ -24,7 +25,7 @@ let seenEvents = new Set(), eventsPrimed = false;
 let curDate = dateKey();
 
 export function disposeAdmin() {
-  unsubDay?.(); unsubEvents?.(); unsubDevices?.(); unsubNotices?.();
+  unsubDay?.(); unsubEvents?.(); unsubDevices?.(); unsubNotices?.(); unsubShots?.();
   unsubDay = unsubEvents = unsubDevices = unsubNotices = null;
   dayRows = []; devices = [];
   seenEvents = new Set();
@@ -58,7 +59,7 @@ export function initAdmin(state) {
   paintEmployees(); fillSettings(); loadReport();
 }
 
-function refreshOnEmployees() { paintEmployees(); paintDash(); paintToday(); paintNoticePick(); }
+function refreshOnEmployees() { paintEmployees(); paintDash(); paintToday(); paintNoticePick(); paintMonEmps(); }
 
 /* ---------- التنقل ---------- */
 function bindNav() {
@@ -68,6 +69,7 @@ function bindNav() {
     $$(".pane").forEach(p => p.classList.remove("active"));
     $("#pane-" + b.dataset.pane).classList.add("active");
     if (b.dataset.pane === "report") loadReport();
+    if (b.dataset.pane === "monitor") paintMonEmps();
     window.scrollTo(0, 0);
   });
   $("#admBell").onclick = async () => {
@@ -395,6 +397,52 @@ function paintEmployees() {
   });
 }
 
+/* ---------- مراقبة الشاشات ---------- */
+let unsubShots = null, monEmpId = null;
+
+function paintMonEmps() {
+  const box = $("#monEmps"); if (!box) return;
+  const emps = (ST.employees || []).filter(e => e.active !== false);
+  box.innerHTML = emps.map(e => {
+    const sc = e.screen, on = sc && sc.state === "on";
+    return `<button class="mon-emp ${monEmpId === e.id ? "active" : ""}" data-mon="${e.id}">
+      <span class="mon-dot ${on ? "on" : ""}"></span>
+      <b>${esc(e.name)}</b>
+      <small>${sc ? (on ? "يشارك الشاشة" : "متوقف") : "لم يشارك"}</small>
+    </button>`;
+  }).join("") || '<div class="empty">لا يوجد موظفون</div>';
+  box.querySelectorAll("button[data-mon]").forEach(b => b.onclick = () => openMon(b.dataset.mon));
+}
+
+function openMon(empId) {
+  monEmpId = empId;
+  const emp = (ST.employees || []).find(e => e.id === empId);
+  $("#monName").textContent = emp ? emp.name : "";
+  $("#monShotsCard").hidden = false;
+  paintMonEmps();
+  unsubShots?.();
+  unsubShots = watchScreens(empId, shots => {
+    const g = $("#monShots");
+    g.innerHTML = shots.map(sh => `
+      <figure class="shot" data-img="${sh.id}">
+        <img src="${sh.img}" loading="lazy" alt="لقطة" />
+        <figcaption>${timeAr(sh.at)}</figcaption>
+      </figure>`).join("");
+    $("#monEmpty").hidden = shots.length > 0;
+    g.querySelectorAll("figure[data-img]").forEach(f => f.onclick = () => {
+      const sh = shots.find(x => x.id === f.dataset.img);
+      $("#shotBig").src = sh.img; $("#shotTime").textContent = timeAr(sh.at);
+      $("#shotModal").hidden = false;
+    });
+  });
+}
+$("#monClear")?.addEventListener("click", async () => {
+  if (!monEmpId || !confirm("مسح كل لقطات هذا الموظف؟")) return;
+  await clearScreens(monEmpId); toast("تم المسح", "ok");
+});
+$("#shotClose")?.addEventListener("click", () => { $("#shotModal").hidden = true; });
+$("#shotModal")?.addEventListener("click", e => { if (e.target.id === "shotModal") e.target.hidden = true; });
+
 /* ---------- ربط الجهاز عبر QR ---------- */
 async function openQr(emp) {
   const modal = $("#qrModal");
@@ -559,10 +607,12 @@ async function loadReport() {
 function onEvents(list) {
   const ul = $("#feedList");
   ul.innerHTML = list.map(ev => {
-    const ico = { in: "i-in", out: "i-out", abs: "i-ban", leftnet: "i-wifi-off", awaynet: "i-alert" }[ev.type] || "i-bell";
+    const ico = { in: "i-in", out: "i-out", abs: "i-ban", leftnet: "i-wifi-off", awaynet: "i-alert", denied: "i-ban" }[ev.type] || "i-bell";
     const cls = { in: "fi-in", out: "fi-out", abs: "fi-abs" }[ev.type]
       || (ev.type === "leftnet" ? (ev.afterShift ? "fi-warn" : "fi-abs")
-       : ev.type === "awaynet" ? "fi-abs" : "fi-in");
+       : ev.type === "denied"
+        ? `<b class="danger-txt">حاول تسجيل الحضور من خارج الشبكة</b> — ${esc({offnet:"خارج شبكة الشركة",noip:"تعذّر تحديد الشبكة",unstable:"اتصال غير مستقر"}[ev.reason]||ev.reason||"")}`
+      : ev.type === "awaynet" ? "fi-abs" : ev.type === "denied" ? "fi-abs" : "fi-in");
     const txt = ev.type === "in" ? `سجّل حضوره${ev.status === "late" ? " (متأخر)" : ""} الساعة ${timeAr(ev.at)}`
       : ev.type === "out" ? `سجّل انصرافه الساعة ${timeAr(ev.at)} — ${minToHuman(ev.workedMin)}`
       : ev.type === "leftnet" ? (ev.afterShift
@@ -618,6 +668,8 @@ function fillSettings() {
   $$('input[name="mode"]').forEach(r => r.checked = r.value === mode);
 
   $("#sManualCheckin").checked = s.manualCheckin === true;
+  if ($("#sScreenMonitor")) $("#sScreenMonitor").checked = s.screenMonitor === true;
+  if ($("#sEarlyCheckin")) $("#sEarlyCheckin").value = s.earlyCheckinMin ?? 60;
   paintManualWarn();
   $("#sForceInstall").checked = s.forceInstall !== false;
   $("#sAuto").checked = !!s.autoCheckin;
@@ -703,6 +755,15 @@ function bindSettings() {
   };
 
   $("#refreshDev").onclick = () => paintDevices();
+
+  $("#sScreenMonitor") && ($("#sScreenMonitor").onchange = async e => {
+    await saveSettings({ screenMonitor: e.target.checked });
+    toast(e.target.checked ? "فُعّلت مراقبة شاشات الكمبيوتر" : "أُوقفت مراقبة الشاشات", "ok");
+  });
+  $("#sEarlyCheckin") && ($("#sEarlyCheckin").onchange = async e => {
+    await saveSettings({ earlyCheckinMin: Math.max(0, Number(e.target.value) || 0) });
+    toast("تم حفظ نافذة الحضور المبكر", "ok");
+  });
 
   $("#sManualCheckin").onchange = async e => {
     await saveSettings({ manualCheckin: e.target.checked });

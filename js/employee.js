@@ -4,9 +4,10 @@ import {
   timeAr, minToHuman, minToHours, toDate, deviceId, hhmmToMin, now, nowMs, clockParts, clockOffset,
   initials, instant, relAr, isDesktopDevice, LS
 } from "./utils.js";
-import { getPublicIP, ipMatches } from "./network.js";
+import { getPublicIP, ipMatches, verifyCompanyNetwork, netReasonAr } from "./network.js";
 import { empPinHash, verifyEmpPin } from "./auth.js";
 import { startScan, parsePcCode, scannerSupported, cameraSupported } from "./scanner.js";
+import { startMonitor, stopMonitor, isSharing } from "./screen.js";
 import { DB_URL } from "./firebase.js";
 import {
   checkIn, checkOut, markAbsent, watchRecord, getMonth, summarize,
@@ -23,6 +24,7 @@ let netWasOn = null, netMisses = 0;
 
 export function disposeEmployee() {
   try { stopScan?.(); } catch {}
+  try { stopMonitor(); } catch {}
   stopScan = null;
   unsubRec?.(); unsubNotices?.(); clearInterval(clockTimer); clearInterval(autoTimer);
   unsubRec = unsubNotices = clockTimer = autoTimer = null;
@@ -49,10 +51,12 @@ export function initEmployee(state, emp) {
   bindPinForm();
   bindAutoStart();
   bindScanner();
+  bindScreenMonitor();
   watchMyNotices();
   bindPcConfirm();
   paintPinState();
   paintPcConfirm();
+  paintScreenCard();
   applyKiosk();
   watchToday();
   loadHistory();
@@ -85,7 +89,7 @@ async function onBackOnline() {
 }
 
 function onSettingsChanged() {
-  applyKiosk(); paintToday(); paintAutoBar("", "جارٍ الفحص…"); tryAutoCheckin(); paintPcConfirm();
+  applyKiosk(); paintToday(); paintAutoBar("", "جارٍ الفحص…"); tryAutoCheckin(); paintPcConfirm(); paintScreenCard();
 }
 
 function onEmployeesChanged(e) {
@@ -251,14 +255,65 @@ function paintToday() {
   }
 }
 
+/* ═══ بوابة التسجيل الموحّدة ═══
+   كل تسجيل حضور — من الزر أو التلقائي أو الكمبيوتر — يمرّ من هنا.
+   لا يُسجَّل الحضور إطلاقاً إلا بعد:
+   1) التحقق الصارم من الشبكة (عدة قراءات للعنوان الفعلي)، أو أن الجهاز هو جهاز الكشك.
+   2) أن يكون الوقت داخل نافذة الحضور (لا تسجيل قبل بدء الشفت بوقت طويل).  */
+function shiftStartMin() {
+  return hhmmToMin((currentTarget()?.workStart) || ST?.settings?.workStart || "09:00");
+}
+function tooEarly() {
+  const start = shiftStartMin();
+  if (start == null) return null;
+  const early = Number(ST?.settings?.earlyCheckinMin ?? 60);   // يُسمح بالتسجيل قبل الشفت بـ60 دقيقة
+  const cur = now().getHours() * 60 + now().getMinutes();
+  return cur < (start - early) ? start - early : null;
+}
+
+/** يتحقق من الشروط ثم يسجّل — يعيد النتيجة أو خطأً واضحاً */
+async function guardedCheckIn(t, source) {
+  // جهاز الكشك المعتمد فيزيائياً داخل الشركة — مستثنى من فحص الشبكة
+  const isKioskDev = ST?.settings?.kioskDeviceId
+    && ST.settings.kioskDeviceId === deviceId();
+
+  // نافذة الوقت: لا تسجيل قبل بدء الشفت بأكثر من المسموح
+  const earlyAt = tooEarly();
+  if (earlyAt != null) {
+    const h24 = Math.floor(earlyAt / 60), mm = String(earlyAt % 60).padStart(2, "0");
+    const lbl = `${String(h24 % 12 || 12).padStart(2, "0")}:${mm} ${h24 < 12 ? "ص" : "م"}`;
+    return { ok: false, error: `لم يبدأ وقت الحضور بعد — يبدأ التسجيل الساعة ${lbl}` };
+  }
+
+  // التحقق الصارم من الشبكة (يُستثنى الكشك فقط)
+  if (!isKioskDev) {
+    const nets = autoNets();
+    if (!nets.length) return { ok: false, error: "لم تُضَف شبكة الشركة بعد — راجع الإدارة" };
+    const v = await verifyCompanyNetwork(nets, 3);
+    if (!v.ok) {
+      logEvent({ type: "denied", empId: EMP.id, empName: EMP.name, date: dateKey(),
+                 at: instant().toISOString(), reason: v.reason, ip: v.ip || "" });
+      return { ok: false, error: netReasonAr(v.reason) };
+    }
+  }
+  return checkIn(t, ST.settings, source);
+}
+
 /* ---------- الأزرار ---------- */
 function bindActions() {
   $("#btnCheckIn").onclick = async () => {
     const t = currentTarget();
+    const btn = $("#btnCheckIn");
+    btn.disabled = true;
+    const oldPill = $("#statusPill").textContent;
+    $("#statusPill").textContent = "جارٍ التحقق من شبكة الشركة…";
     await askPermission(true);
     const src = kioskTarget ? "kiosk" : "self";
-    const r = await checkIn(t, ST.settings, src);
-    if (!r.ok) { toast(r.error, "err"); return; }
+    const r = await guardedCheckIn(t, src);
+    btn.disabled = false;
+    if (!r.ok) { $("#statusPill").textContent = oldPill; toast(r.error, "err");
+                 notify("⛔ تعذّر تسجيل الحضور", `${t.name}\n${r.error}`, { tag: "att-deny", sound: "warn" });
+                 return; }
     buzz();
     const tm = timeAr(r.record.checkIn);
     toast(`تم تسجيل حضور ${t.name} الساعة ${tm} ✅`, "ok");
@@ -274,6 +329,7 @@ function bindActions() {
     const r = await checkOut(t, ST.settings);
     if (!r.ok) { toast(r.error, "err"); return; }
     buzz([100, 50, 100, 50, 160]);
+    try { stopMonitor(); paintScreenCard(); } catch {}
     const i = timeAr(r.record.checkIn), o = timeAr(r.record.checkOut);
     const ot = Number(r.record.overtimeMin || 0);
     const exc = Number(r.record.lateExcused || 0);
@@ -351,6 +407,36 @@ export function statusTag(r) {
   if (r.checkOut)            return '<span class="tag t-out">انصرف</span>';
   if (r.checkIn)             return '<span class="tag t-present">حاضر</span>';
   return '<span class="tag t-off">—</span>';
+}
+
+/* ---------- مراقبة الشاشة ---------- */
+function paintScreenCard() {
+  const card = $("#screenCard"); if (!card) return;
+  const on = ST?.settings?.screenMonitor === true;
+  card.hidden = !(on && isDesktop());
+  if (card.hidden) { if (isSharing()) stopMonitor(); return; }
+  const sharing = isSharing();
+  $("#screenState").className = "tag " + (sharing ? "t-present" : "t-off");
+  $("#screenState").textContent = sharing ? "قيد المراقبة" : "متوقفة";
+  $("#screenStart").hidden = sharing;
+  $("#screenStop").hidden = !sharing;
+}
+
+function bindScreenMonitor() {
+  const start = $("#screenStart"), stop = $("#screenStop");
+  if (!start) return;
+  start.onclick = async () => {
+    try {
+      await startMonitor({ empId: EMP.id, empName: EMP.name, minGap: 5, maxGap: 25 });
+      toast("بدأت مراقبة الشاشة — أبقِ المشاركة فعّالة أثناء الدوام", "ok");
+    } catch (e) {
+      toast(String(e && e.name) === "NotAllowedError"
+        ? "لم توافق على مشاركة الشاشة — المراقبة مطلوبة من الإدارة"
+        : "تعذّر بدء المشاركة على هذا الجهاز", "err");
+    }
+    paintScreenCard();
+  };
+  stop.onclick = () => { stopMonitor(true); toast("تم إيقاف المراقبة", "ok"); paintScreenCard(); };
 }
 
 /* ---------- ماسح رمز الكمبيوتر ---------- */
@@ -523,6 +609,7 @@ function paintPinState() {
   // كلمة مرور الحضور والتشغيل التلقائي يخصّان الكمبيوتر فقط
   const pinCard = $("#empPinCard"); if (pinCard) pinCard.hidden = !isDesktop();
   const auto = $("#autoStartCard"); if (auto) auto.hidden = !isDesktop();
+  paintScreenCard();
 }
 
 /** بطاقة تأكيد الحضور من الكمبيوتر — تظهر على الكمبيوتر فقط وداخل شبكة الشركة */
@@ -557,11 +644,13 @@ function bindPcConfirm() {
     e.preventDefault();
     const box = $("#pcConfirmMsgBox");
     const show = (t, ok) => { box.textContent = t; box.className = "alert " + (ok ? "ok" : "error"); box.hidden = false; };
-    const nets = autoNets();
-    const ip = navigator.onLine ? await getPublicIP(true) : null;
-    if (!ip || !ipMatches(ip, nets)) { show("لا يمكن تأكيد الحضور من خارج شبكة الشركة", false); return; }
-    const v = await verifyEmpPin(EMP, $("#pcPin").value);
-    if (!v.ok) { show(v.error, false); return; }
+    if (tooEarly() != null) { show("لم يبدأ وقت الحضور بعد", false); return; }
+    // كلمة المرور أولاً ثم تحقّق صارم من الشبكة
+    const vp = await verifyEmpPin(EMP, $("#pcPin").value);
+    if (!vp.ok) { show(vp.error, false); return; }
+    show("جارٍ التحقق من شبكة الشركة…", true);
+    const vn = await verifyCompanyNetwork(autoNets(), 3);
+    if (!vn.ok) { show(netReasonAr(vn.reason), false); return; }
     const r = await checkIn(EMP, ST.settings, "pc-pin");
     if (!r.ok) { show(r.error, false); return; }
     $("#pcPin").value = "";
@@ -712,12 +801,18 @@ async function tryAutoCheckin() {
   const from = hhmmToMin(s.autoWindowStart || "05:00"), to = hhmmToMin(s.autoWindowEnd || "23:59");
   if (cur < from || cur > to) { paintAutoBar("off", "خارج وقت الفحص التلقائي"); return; }
 
+  // لا تسجيل تلقائي قبل بدء الشفت بأكثر من المسموح
+  if (tooEarly() != null) { paintAutoBar("off", "لم يبدأ وقت الحضور بعد"); return; }
+
   autoBusy = true;
-  paintAutoBar("", "جارٍ فحص الشبكة…");
+  paintAutoBar("", "جارٍ التحقق من الشبكة…");
   try {
-    const ip = await getPublicIP();
-    if (!ip) { paintAutoBar("off", "تعذّر تحديد الشبكة"); return; }
-    if (!ipMatches(ip, autoNets())) { paintAutoBar("off", "لست على شبكة الشركة"); return; }
+    // تحقّق صارم متعدد القراءات من العنوان الفعلي قبل التسجيل
+    const v = await verifyCompanyNetwork(autoNets(), 3);
+    if (!v.ok) {
+      paintAutoBar("off", v.reason === "offnet" ? "لست على شبكة الشركة" : netReasonAr(v.reason));
+      return;
+    }
 
     const r = await checkIn(EMP, s, "auto-wifi");
     if (!r.ok) { paintAutoBar("on", r.error || "تم التسجيل مسبقاً"); return; }

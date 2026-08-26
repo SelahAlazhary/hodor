@@ -1,11 +1,11 @@
 /* ===== Service Worker — تشغيل بدون إنترنت + الإشعارات ===== */
-const VERSION = "spotlight-v12";
+const VERSION = "spotlight-v13";
 const CFG_CACHE = "azhari-config";   // كاش دائم لإعدادات الحضور التلقائي
 const SHELL = [
   "./", "./index.html", "./manifest.webmanifest",
   "./css/app.css",
   "./js/app.js", "./js/utils.js", "./js/store.js",
-  "./js/firebase.js", "./js/notify.js", "./js/employee.js", "./js/admin.js", "./js/sound.js", "./js/scanner.js",
+  "./js/firebase.js", "./js/notify.js", "./js/employee.js", "./js/admin.js", "./js/sound.js", "./js/scanner.js", "./js/screen.js",
   "./icons/icon-192-sl.png", "./icons/icon-512-sl.png"
 ];
 
@@ -279,6 +279,14 @@ async function autoCheckin() {
     if (!ip || !ipHit(ip, nets)) return;
 
     const startMin = toMin(cfg.workStart || S.workStart) ?? 540;
+    // لا تسجيل قبل بدء الشفت بأكثر من المسموح
+    if (cur < startMin - Number(S.earlyCheckinMin ?? 60)) return;
+
+    // تحقّق صارم: قراءة ثانية للعنوان بعد فاصل قصير، كلاهما يجب أن يكون على الشبكة
+    await new Promise(r => setTimeout(r, 1500));
+    const ip2 = await publicIP();
+    if (!ip2 || !ipHit(ip2, nets)) return;
+
     const late = cur - (startMin + Number(S.graceMin || 0));
     const rec = {
       empId: cfg.empId, empName: cfg.empName, date: dk,
