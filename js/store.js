@@ -394,7 +394,14 @@ export async function checkIn(emp, settings, source = "self") {
     source, deviceId: deviceId(),
     createdAt: nowMs(), updatedAt: nowMs()
   };
-  enqueue(attPath(dk, emp.id), rec);
+  // تسجيل الحضور يُكتب مباشرة إلى الخادم (لا طابور محلي) — فلا يُعتبر ناجحاً
+  // إلا إذا حُفظ فعلياً. بهذا لا يُسجَّل حضور بلا اتصال حقيقي بالإنترنت.
+  if (!navigator.onLine) return { ok: false, error: "لا يوجد اتصال بالإنترنت — تعذّر تسجيل الحضور" };
+  try {
+    await set(attRef(dk, emp.id), rec);
+  } catch (e) {
+    return { ok: false, error: "تعذّر حفظ الحضور — تأكد من اتصالك بالإنترنت وحاول مجدداً" };
+  }
   logEvent({ type: "in", empId: emp.id, empName: emp.name, date: dk, at: inst.toISOString(), status });
   return { ok: true, record: rec };
 }
