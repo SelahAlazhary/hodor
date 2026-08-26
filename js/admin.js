@@ -670,6 +670,7 @@ function fillSettings() {
   $("#sManualCheckin").checked = s.manualCheckin === true;
   if ($("#sScreenMonitor")) $("#sScreenMonitor").checked = s.screenMonitor === true;
   if ($("#sEarlyCheckin")) $("#sEarlyCheckin").value = s.earlyCheckinMin ?? 60;
+  if ($("#sAutoCheckout")) $("#sAutoCheckout").checked = s.autoCheckout !== false;
   paintManualWarn();
   $("#sForceInstall").checked = s.forceInstall !== false;
   $("#sAuto").checked = !!s.autoCheckin;
@@ -759,6 +760,10 @@ function bindSettings() {
   $("#sScreenMonitor") && ($("#sScreenMonitor").onchange = async e => {
     await saveSettings({ screenMonitor: e.target.checked });
     toast(e.target.checked ? "فُعّلت مراقبة شاشات الكمبيوتر" : "أُوقفت مراقبة الشاشات", "ok");
+  });
+  $("#sAutoCheckout") && ($("#sAutoCheckout").onchange = async e => {
+    await saveSettings({ autoCheckout: e.target.checked });
+    toast(e.target.checked ? "فُعّل الانصراف التلقائي عند انتهاء الشفت" : "أُوقف الانصراف التلقائي", "ok");
   });
   $("#sEarlyCheckin") && ($("#sEarlyCheckin").onchange = async e => {
     await saveSettings({ earlyCheckinMin: Math.max(0, Number(e.target.value) || 0) });

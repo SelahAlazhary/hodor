@@ -1,5 +1,5 @@
 /* ===== Service Worker — تشغيل بدون إنترنت + الإشعارات ===== */
-const VERSION = "spotlight-v14";
+const VERSION = "spotlight-v15";
 const CFG_CACHE = "azhari-config";   // كاش دائم لإعدادات الحضور التلقائي
 const SHELL = [
   "./", "./index.html", "./manifest.webmanifest",
@@ -231,6 +231,35 @@ async function checkoutDue() {
     const dk = `${now.getFullYear()}-${p2(now.getMonth() + 1)}-${p2(now.getDate())}`;
     const rec = await (await fetch(`${cfg.dbUrl}/attendance/${dk}/${cfg.empId}.json`, { cache: "no-store" })).json();
     if (!rec || !rec.checkIn || rec.checkOut || rec.status === "absent") return;
+
+    // ═══ انصراف تلقائي والتطبيق مغلق ═══
+    if (S.autoCheckout !== false && cur >= end + Number(S.autoCheckoutAfterMin ?? 2)) {
+      const inMs = new Date(rec.checkIn).getTime();
+      // وقت الانصراف = نهاية الشفت اليوم (بتوقيت القاهرة)
+      const endHH = end, endDate = new Date(now); endDate.setHours(Math.floor(endHH / 60), endHH % 60, 0, 0);
+      let outMs = ms - (cur - endHH) * 60000;
+      if (outMs <= inMs) outMs = ms;
+      const workedMin = Math.max(0, Math.round((outMs - inMs) / 60000));
+      const reqMin = (() => { const a = toMin(rec.expectedStart), b = toMin(rec.expectedEnd);
+        let d = (a != null && b != null) ? b - a : (Number(S.dailyHours || 8) * 60); if (d < 0) d += 1440; return d || 480; })();
+      const lateMin = Math.max(0, Number(rec.lateMin || 0));
+      const ot = Math.max(0, workedMin - reqMin);
+      const patch = { checkOut: new Date(outMs).toISOString(), workedMin, requiredMin: reqMin,
+        overtimeMin: ot, completed: true, autoCheckout: true,
+        status: (lateMin > 0 && ot > 0) ? "present" : (rec.status === "late" ? "late" : "present"),
+        lateMin: (lateMin > 0 && ot > 0) ? 0 : lateMin, lateExcused: (lateMin > 0 && ot > 0) ? lateMin : 0,
+        updatedAt: Date.now() };
+      await fetch(`${cfg.dbUrl}/attendance/${dk}/${cfg.empId}.json`, { method: "PATCH", body: JSON.stringify(patch) });
+      await fetch(`${cfg.dbUrl}/events.json`, { method: "POST", body: JSON.stringify({
+        type: "out", empId: cfg.empId, empName: cfg.empName, date: dk,
+        at: new Date(outMs).toISOString(), workedMin, auto: true, createdAt: Date.now() }) });
+      let h = new Date(outMs); const hh = h.getHours();
+      await self.registration.showNotification("🔴 انصراف تلقائي", {
+        body: `${cfg.empName}\nانتهى دوامك — سُجّل انصرافك تلقائياً`,
+        icon: "./icons/icon-192-sl.png", badge: "./icons/icon-192-sl.png",
+        dir: "rtl", lang: "ar", silent: false, tag: "auto-out", vibrate: [120, 60, 120] });
+      return;
+    }
 
     const slot = Math.floor((cur - end) / 30);
     if (slot > 4) return;

@@ -12,7 +12,7 @@ import { DB_URL } from "./firebase.js";
 import {
   checkIn, checkOut, markAbsent, watchRecord, getMonth, summarize,
   requiredMinOf, overtimeOf, logEvent, setRecord, updateEmployee,
-  watchNotices, noticeFor, approvePcRequest, findPcRequestByCode
+  watchNotices, noticeFor, approvePcRequest, findPcRequestByCode, autoCheckout
 } from "./store.js";
 import { notify, askPermission, buzz } from "./notify.js";
 
@@ -146,6 +146,7 @@ function startClock() {
     paintGreeting();
     paintGauge();
     checkoutReminder();
+    maybeAutoCheckout();
   };
   tick();
   clockTimer = setInterval(tick, 1000);
@@ -662,6 +663,39 @@ function bindPcConfirm() {
       { tag: "att-in", sound: "in" });
     loadHistory();
   };
+}
+
+/* ---------- الانصراف التلقائي عند انتهاء الشفت ---------- */
+let autoOutBusy = false;
+async function maybeAutoCheckout() {
+  const s = ST?.settings || {};
+  if (s.autoCheckout === false || autoOutBusy) return;
+  const t = currentTarget();
+  if (!t || !today || !today.checkIn || today.checkOut || today.status === "absent") return;
+  const end = hhmmToMin(t.workEnd || s.workEnd);
+  if (end == null) return;
+  const grace = Number(s.autoCheckoutAfterMin ?? 2);
+  const cur = now().getHours() * 60 + now().getMinutes();
+  if (cur < end + grace) return;                       // لم ينتهِ الشفت بعد
+  const key = `az_autoout_${t.id}_${dateKey()}`;
+  if (LS.get(key)) return;
+  LS.set(key, 1);
+  autoOutBusy = true;
+  try {
+    const r = await autoCheckout(t, s);
+    if (r.ok) {
+      buzz([100, 50, 100, 50, 160]);
+      toast(`انتهى دوامك — تم تسجيل انصرافك تلقائياً (${minToHuman(r.record.workedMin)})`, "ok");
+      notify("🔴 انصراف تلقائي",
+        `${t.name}
+انتهى دوامك — سُجّل انصرافك تلقائياً
+إجمالي اليوم: ${minToHuman(r.record.workedMin)}`,
+        { tag: "auto-out", sticky: true, sound: "out" });
+      loadHistory();
+    } else {
+      LS.del(key);                                     // نعيد المحاولة لاحقاً إن تعذّر
+    }
+  } finally { autoOutBusy = false; }
 }
 
 /* ---------- تنبيه انتهاء وقت العمل ---------- */

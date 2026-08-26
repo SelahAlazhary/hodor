@@ -10,7 +10,7 @@ import {
 } from "./firebase.js";
 import { LS, dateKey, monthRange, hhmmToMin, toDate, normName, samePhone, deviceId,
          deviceLabel, deviceKind,
-         now, nowMs, instant, setClockOffset } from "./utils.js";
+         now, nowMs, instant, msFromCairo, setClockOffset } from "./utils.js";
 
 /* ---------------- الإعدادات الافتراضية ---------------- */
 export const DEFAULT_SETTINGS = {
@@ -27,7 +27,9 @@ export const DEFAULT_SETTINGS = {
   networks: {},             // { "41_33_12_5": { ip, label, addedAt } }
   manualCheckin: false,
   earlyCheckinMin: 60,        // يُسمح بتسجيل الحضور قبل بدء الشفت بهذا العدد من الدقائق فقط
-  screenMonitor: false,       // مراقبة شاشات الكمبيوتر بلقطات عشوائية      // زر «تسجيل حضور» مخفي عن الموظف افتراضياً
+  screenMonitor: false,       // مراقبة شاشات الكمبيوتر بلقطات عشوائية
+  autoCheckout: true,         // انصراف تلقائي عند انتهاء الشفت
+  autoCheckoutAfterMin: 2,    // بعد نهاية الشفت بهذا العدد من الدقائق      // زر «تسجيل حضور» مخفي عن الموظف افتراضياً
   forceInstall: true,
   autoWindowStart: "06:00",
   autoWindowEnd: "17:30"
@@ -398,7 +400,7 @@ export async function checkIn(emp, settings, source = "self") {
   // إلا إذا حُفظ فعلياً. بهذا لا يُسجَّل حضور بلا اتصال حقيقي بالإنترنت.
   if (!navigator.onLine) return { ok: false, error: "لا يوجد اتصال بالإنترنت — تعذّر تسجيل الحضور" };
   try {
-    await set(attRef(dk, emp.id), rec);
+    await set(ref(db, attPath(dk, emp.id)), rec);
   } catch (e) {
     return { ok: false, error: "تعذّر حفظ الحضور — تأكد من اتصالك بالإنترنت وحاول مجدداً" };
   }
@@ -444,6 +446,31 @@ export async function checkOut(emp, settings) {
   };
   enqueue(attPath(dk, emp.id), patch);
   logEvent({ type: "out", empId: emp.id, empName: emp.name, date: dk, at: inst.toISOString(), workedMin });
+  return { ok: true, record: { ...exist, ...patch } };
+}
+
+/** انصراف تلقائي عند انتهاء الشفت — وقت الانصراف = نهاية الشفت (ساعات دقيقة) */
+export async function autoCheckout(emp, settings) {
+  const dk = dateKey(now());
+  const exist = await getRecord(dk, emp.id);
+  if (!exist || !exist.checkIn || exist.checkOut || exist.status === "absent") return { ok: false };
+
+  const endStr = exist.expectedEnd || emp.workEnd || settings.workEnd || "17:00";
+  const inMs = toDate(exist.checkIn).getTime();
+  let outMs = msFromCairo(dk, endStr);
+  if (outMs <= inMs) outMs = nowMs();          // حضر بعد نهاية الشفت (نادر) → الآن
+
+  const workedMin = Math.max(0, Math.round((outMs - inMs) / 60000));
+  const patch = {
+    checkOut: new Date(outMs).toISOString(),
+    ...compensateLate(exist, workedMin, requiredMinOf(exist, settings, emp)),
+    autoCheckout: true, updatedAt: nowMs()
+  };
+  if (!navigator.onLine) return { ok: false };
+  try { await set(ref(db, attPath(dk, emp.id)), { ...exist, ...patch }); }
+  catch { return { ok: false }; }
+  logEvent({ type: "out", empId: emp.id, empName: emp.name, date: dk,
+             at: new Date(outMs).toISOString(), workedMin, auto: true });
   return { ok: true, record: { ...exist, ...patch } };
 }
 
