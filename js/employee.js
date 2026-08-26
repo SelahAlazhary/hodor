@@ -454,6 +454,7 @@ function bindScanner() {
 
   $("#openScanner").onclick = async () => {
     modal.hidden = false; msg.hidden = true;
+    setTimeout(() => $("#scanCode")?.focus(), 200);   // يجهّز الإدخال اليدوي فوراً
     st.className = "pill pill-idle"; st.textContent = "جارٍ تشغيل الكاميرا…";
     if (!cameraSupported()) { st.textContent = "الكاميرا غير متاحة — استخدم الرمز اليدوي"; return; }
     try {

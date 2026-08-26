@@ -1,5 +1,5 @@
 /* ===== Service Worker — تشغيل بدون إنترنت + الإشعارات ===== */
-const VERSION = "spotlight-v13";
+const VERSION = "spotlight-v14";
 const CFG_CACHE = "azhari-config";   // كاش دائم لإعدادات الحضور التلقائي
 const SHELL = [
   "./", "./index.html", "./manifest.webmanifest",
