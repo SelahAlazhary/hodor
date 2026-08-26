@@ -236,7 +236,7 @@ async function todayAction(act, empId) {
     const ms = toDate(rec.leftNetAt).getTime();
     if (!confirm(`إنهاء يوم ${emp.name} على لحظة مغادرته المقر (${timeAr(rec.leftNetAt)})؟`)) return;
     const workedMin = Math.max(0, Math.round((ms - toDate(rec.checkIn).getTime()) / 60000));
-    const comp = compensateLate(rec, workedMin, requiredMinOf(rec, st, emp));
+    const comp = compensateLate(rec, workedMin, requiredMinOf(rec, st, emp), st.compensateLate === true);
     await setRecord(curDate, empId, {
       checkOut: new Date(ms).toISOString(), ...comp, closedFromNetworkExit: true
     });
@@ -253,7 +253,7 @@ async function todayAction(act, empId) {
     const ms = isToday ? nowMs() : msFromCairo(curDate, emp.workEnd || st.workEnd || "17:00");
     const workedMin = Math.max(0, Math.round((ms - toDate(rec.checkIn).getTime()) / 60000));
     const req = requiredMinOf(rec, st, emp);
-    const comp = compensateLate(rec, workedMin, req);
+    const comp = compensateLate(rec, workedMin, req, (ST.settings||{}).compensateLate === true);
     await setRecord(curDate, empId, { checkOut: new Date(ms).toISOString(), ...comp });
     if (comp.lateExcused > 0) toast(`عُوِّض تأخير ${emp.name} بالوقت الإضافي`, "ok");
     logEvent({ type: "out", empId, empName: emp.name, date: curDate, at: new Date(ms).toISOString(), workedMin });
@@ -671,6 +671,7 @@ function fillSettings() {
   if ($("#sScreenMonitor")) $("#sScreenMonitor").checked = s.screenMonitor === true;
   if ($("#sEarlyCheckin")) $("#sEarlyCheckin").value = s.earlyCheckinMin ?? 60;
   if ($("#sAutoCheckout")) $("#sAutoCheckout").checked = s.autoCheckout !== false;
+  if ($("#sCompensateLate")) $("#sCompensateLate").checked = s.compensateLate === true;
   paintManualWarn();
   $("#sForceInstall").checked = s.forceInstall !== false;
   $("#sAuto").checked = !!s.autoCheckin;
@@ -764,6 +765,10 @@ function bindSettings() {
   $("#sAutoCheckout") && ($("#sAutoCheckout").onchange = async e => {
     await saveSettings({ autoCheckout: e.target.checked });
     toast(e.target.checked ? "فُعّل الانصراف التلقائي عند انتهاء الشفت" : "أُوقف الانصراف التلقائي", "ok");
+  });
+  $("#sCompensateLate") && ($("#sCompensateLate").onchange = async e => {
+    await saveSettings({ compensateLate: e.target.checked });
+    toast(e.target.checked ? "سيُعوَّض التأخير بالوقت الإضافي" : "التأخير سيُحتسب دائماً", "ok");
   });
   $("#sEarlyCheckin") && ($("#sEarlyCheckin").onchange = async e => {
     await saveSettings({ earlyCheckinMin: Math.max(0, Number(e.target.value) || 0) });

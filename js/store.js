@@ -30,7 +30,8 @@ export const DEFAULT_SETTINGS = {
   screenMonitor: false,       // مراقبة شاشات الكمبيوتر بلقطات عشوائية
   autoCheckout: true,         // انصراف تلقائي عند انتهاء الشفت
   autoCheckoutAfterMin: 2,    // بعد نهاية الشفت بهذا العدد من الدقائق
-  autoCheckoutAfterLeaveMin: 60, // انصراف تلقائي بعد مغادرة الشبكة بهذا العدد من الدقائق      // زر «تسجيل حضور» مخفي عن الموظف افتراضياً
+  autoCheckoutAfterLeaveMin: 60, // انصراف تلقائي بعد مغادرة الشبكة بهذا العدد من الدقائق
+  compensateLate: false,      // false = التأخير يُحتسب دائماً | true = يُعوَّض بالوقت الإضافي      // زر «تسجيل حضور» مخفي عن الموظف افتراضياً
   forceInstall: true,
   autoWindowStart: "06:00",
   autoWindowEnd: "17:30"
@@ -414,13 +415,14 @@ export async function checkIn(emp, settings, source = "self") {
  *  فيُسجَّل أنه **لم يتأخر** ويُحتسب له الفائض وقتاً إضافياً.
  *  مثال: دوامه 9→5، حضر 10 (متأخر ساعة) وانصرف 7 مساءً
  *        ⇒ عمل 9 ساعات بدل 8 ⇒ لا تأخير + ساعة إضافية.       */
-export function compensateLate(rec, workedMin, requiredMin) {
+export function compensateLate(rec, workedMin, requiredMin, compensate = false) {
   const overtimeMin = Math.max(0, workedMin - requiredMin);
   const lateMin = Math.max(0, Number(rec?.lateMin || 0));
   const patch = { workedMin, requiredMin, overtimeMin, completed: true };
 
-  if (lateMin > 0 && overtimeMin > 0) {
-    patch.status = "present";       // عُوِّض التأخير بالكامل
+  // التعويض مغلق افتراضياً: التأخير يُحتسب دائماً ولا تتمدد نهاية الشفت بسببه.
+  if (compensate && lateMin > 0 && overtimeMin > 0) {
+    patch.status = "present";       // عُوِّض التأخير بالكامل (عند تفعيل الخيار فقط)
     patch.lateMin = 0;
     patch.lateExcused = lateMin;    // نحتفظ بالرقم للشفافية في التقارير
   } else {
@@ -442,7 +444,7 @@ export async function checkOut(emp, settings) {
   const requiredMin = requiredMinOf(exist, settings, emp);
   const patch = {
     checkOut: inst.toISOString(),
-    ...compensateLate(exist, workedMin, requiredMin),
+    ...compensateLate(exist, workedMin, requiredMin, settings.compensateLate === true),
     updatedAt: nowMs()
   };
   enqueue(attPath(dk, emp.id), patch);
@@ -466,7 +468,7 @@ export async function autoCheckout(emp, settings, atMs = null) {
   const workedMin = Math.max(0, Math.round((outMs - inMs) / 60000));
   const patch = {
     checkOut: new Date(outMs).toISOString(),
-    ...compensateLate(exist, workedMin, requiredMinOf(exist, settings, emp)),
+    ...compensateLate(exist, workedMin, requiredMinOf(exist, settings, emp), settings.compensateLate === true),
     autoCheckout: true, updatedAt: nowMs()
   };
   if (!navigator.onLine) return { ok: false };

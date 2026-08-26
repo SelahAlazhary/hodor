@@ -1,5 +1,5 @@
 /* ===== Service Worker — تشغيل بدون إنترنت + الإشعارات ===== */
-const VERSION = "spotlight-v17";
+const VERSION = "spotlight-v18";
 const CFG_CACHE = "azhari-config";   // كاش دائم لإعدادات الحضور التلقائي
 const SHELL = [
   "./", "./index.html", "./manifest.webmanifest",
@@ -187,8 +187,9 @@ async function leftNetwork() {
       await fetch(`${cfg.dbUrl}/attendance/${dk}/${cfg.empId}.json`, { method: "PATCH", body: JSON.stringify({
         checkOut: new Date(outMs).toISOString(), workedMin, requiredMin: reqMin, overtimeMin: ot,
         completed: true, autoCheckout: true,
-        status: (lateMin > 0 && ot > 0) ? "present" : (rec.status === "late" ? "late" : "present"),
-        lateMin: (lateMin > 0 && ot > 0) ? 0 : lateMin, lateExcused: (lateMin > 0 && ot > 0) ? lateMin : 0,
+        status: (S.compensateLate === true && lateMin > 0 && ot > 0) ? "present" : (rec.status === "late" ? "late" : "present"),
+        lateMin: (S.compensateLate === true && lateMin > 0 && ot > 0) ? 0 : lateMin,
+        lateExcused: (S.compensateLate === true && lateMin > 0 && ot > 0) ? lateMin : 0,
         updatedAt: Date.now() }) });
       await fetch(`${cfg.dbUrl}/events.json`, { method: "POST", body: JSON.stringify({
         type: "out", empId: cfg.empId, empName: cfg.empName, date: dk,
@@ -277,8 +278,9 @@ async function checkoutDue() {
       const ot = Math.max(0, workedMin - reqMin);
       const patch = { checkOut: new Date(outMs).toISOString(), workedMin, requiredMin: reqMin,
         overtimeMin: ot, completed: true, autoCheckout: true,
-        status: (lateMin > 0 && ot > 0) ? "present" : (rec.status === "late" ? "late" : "present"),
-        lateMin: (lateMin > 0 && ot > 0) ? 0 : lateMin, lateExcused: (lateMin > 0 && ot > 0) ? lateMin : 0,
+        status: (S.compensateLate === true && lateMin > 0 && ot > 0) ? "present" : (rec.status === "late" ? "late" : "present"),
+        lateMin: (S.compensateLate === true && lateMin > 0 && ot > 0) ? 0 : lateMin,
+        lateExcused: (S.compensateLate === true && lateMin > 0 && ot > 0) ? lateMin : 0,
         updatedAt: Date.now() };
       await fetch(`${cfg.dbUrl}/attendance/${dk}/${cfg.empId}.json`, { method: "PATCH", body: JSON.stringify(patch) });
       await fetch(`${cfg.dbUrl}/events.json`, { method: "POST", body: JSON.stringify({
