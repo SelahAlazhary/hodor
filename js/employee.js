@@ -672,6 +672,7 @@ async function maybeAutoCheckout() {
   if (s.autoCheckout === false || autoOutBusy) return;
   const t = currentTarget();
   if (!t || !today || !today.checkIn || today.checkOut || today.status === "absent") return;
+  if (today.leftNetAt) return;                         // غادر الشبكة → يتكفّل به انصراف المغادرة
   const end = hhmmToMin(t.workEnd || s.workEnd);
   if (end == null) return;
   const grace = Number(s.autoCheckoutAfterMin ?? 2);
@@ -764,15 +765,43 @@ async function checkNetworkExit() {
   if (!ip) return;
 
   const key = `az_leftnet_${EMP.id}_${dateKey()}`;
-  if (ipMatches(ip, nets)) {                      // ما زال داخل الشبكة
+  if (ipMatches(ip, nets)) {                      // ما زال / عاد داخل الشبكة
     netWasOn = true; netMisses = 0;
-    LS.del(key);                                  // نعيد التسليح لو خرج لاحقاً
+    LS.del(key);
+    LS.del(`az_awaynet_${EMP.id}_${dateKey()}`);
+    if (today.leftNetAt) {                        // عاد إلى المقر → نُلغي علامة المغادرة
+      setRecord(dateKey(), EMP.id, { leftNetAt: null, leftAfterShift: null }).catch(() => {});
+    }
     return;
   }
   if (netWasOn !== true) return;                  // لم نتأكد أصلاً أنه كان عليها
   if (++netMisses < 2) return;                    // تأكيد بقراءتين
 
-  // ═══ غائب عن الشبكة منذ ساعة أو أكثر: تنبيه المدير ليتحقق من وجوده ═══
+  // ═══ انصراف تلقائي بعد مغادرة الشبكة بساعة ═══
+  //     وقت الانصراف = لحظة مغادرته الشبكة الفعلية (لا الآن ولا نهاية الشفت)
+  if (today.leftNetAt && s.autoCheckout !== false) {
+    const leftMs = toDate(today.leftNetAt).getTime();
+    const awayMin = Math.round((nowMs() - leftMs) / 60000);
+    const afterLeave = Number(s.autoCheckoutAfterLeaveMin ?? 60);
+    if (awayMin >= afterLeave) {
+      const oKey = `az_autoout_${EMP.id}_${dateKey()}`;
+      if (!LS.get(oKey)) {
+        LS.set(oKey, 1);
+        const r = await autoCheckout(EMP, s, leftMs);
+        if (r.ok) {
+          buzz([300, 120, 300, 120, 300]);
+          toast(`تم تسجيل انصرافك تلقائياً عند مغادرتك (${timeAr(r.record.checkOut)})`, "ok");
+          notify("🔴 تم تسجيل انصرافك",
+            `${EMP.name}\nمضت ساعة على مغادرتك شبكة الشركة\nسُجّل انصرافك عند خروجك الساعة ${timeAr(r.record.checkOut)}\nإجمالي اليوم: ${minToHuman(r.record.workedMin)}`,
+            { tag: "auto-out", sticky: true, sound: "out" });
+          loadHistory();
+          return;
+        } else { LS.del(oKey); }
+      }
+    }
+  }
+
+  // ═══ تنبيه المدير كل ساعة ما دام خارج الشبكة وحضوره مفتوح ═══
   if (today.leftNetAt) {
     const awayMin = Math.round((nowMs() - toDate(today.leftNetAt).getTime()) / 60000);
     const slot = Math.floor(awayMin / 60);        // كل ساعة

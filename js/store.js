@@ -29,7 +29,8 @@ export const DEFAULT_SETTINGS = {
   earlyCheckinMin: 60,        // يُسمح بتسجيل الحضور قبل بدء الشفت بهذا العدد من الدقائق فقط
   screenMonitor: false,       // مراقبة شاشات الكمبيوتر بلقطات عشوائية
   autoCheckout: true,         // انصراف تلقائي عند انتهاء الشفت
-  autoCheckoutAfterMin: 2,    // بعد نهاية الشفت بهذا العدد من الدقائق      // زر «تسجيل حضور» مخفي عن الموظف افتراضياً
+  autoCheckoutAfterMin: 2,    // بعد نهاية الشفت بهذا العدد من الدقائق
+  autoCheckoutAfterLeaveMin: 60, // انصراف تلقائي بعد مغادرة الشبكة بهذا العدد من الدقائق      // زر «تسجيل حضور» مخفي عن الموظف افتراضياً
   forceInstall: true,
   autoWindowStart: "06:00",
   autoWindowEnd: "17:30"
@@ -449,15 +450,17 @@ export async function checkOut(emp, settings) {
   return { ok: true, record: { ...exist, ...patch } };
 }
 
-/** انصراف تلقائي عند انتهاء الشفت — وقت الانصراف = نهاية الشفت (ساعات دقيقة) */
-export async function autoCheckout(emp, settings) {
+/** انصراف تلقائي — وقت الانصراف = atMs إن مُرّر (مثل لحظة مغادرة الشبكة)
+ *  وإلا نهاية الشفت. تُحسب الساعات بدقة حتى ذلك الوقت. */
+export async function autoCheckout(emp, settings, atMs = null) {
   const dk = dateKey(now());
   const exist = await getRecord(dk, emp.id);
   if (!exist || !exist.checkIn || exist.checkOut || exist.status === "absent") return { ok: false };
 
   const endStr = exist.expectedEnd || emp.workEnd || settings.workEnd || "17:00";
   const inMs = toDate(exist.checkIn).getTime();
-  let outMs = msFromCairo(dk, endStr);
+  let outMs = atMs != null ? Number(atMs) : msFromCairo(dk, endStr);
+  if (outMs > nowMs()) outMs = nowMs();        // لا يتجاوز الوقت الحالي أبداً
   if (outMs <= inMs) outMs = nowMs();          // حضر بعد نهاية الشفت (نادر) → الآن
 
   const workedMin = Math.max(0, Math.round((outMs - inMs) / 60000));

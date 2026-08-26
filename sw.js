@@ -1,5 +1,5 @@
 /* ===== Service Worker — تشغيل بدون إنترنت + الإشعارات ===== */
-const VERSION = "spotlight-v16";
+const VERSION = "spotlight-v17";
 const CFG_CACHE = "azhari-config";   // كاش دائم لإعدادات الحضور التلقائي
 const SHELL = [
   "./", "./index.html", "./manifest.webmanifest",
@@ -174,6 +174,37 @@ async function leftNetwork() {
       if (prev) await c.delete(markReq);
       return;
     }
+    // ═══ انصراف تلقائي بعد مغادرة الشبكة بساعة (وقت الانصراف = لحظة المغادرة) ═══
+    const prevLeft = rec.leftNetAt ? new Date(rec.leftNetAt).getTime() : ms;
+    const awayMin = Math.round((ms - prevLeft) / 60000);
+    if (S.autoCheckout !== false && rec.leftNetAt && awayMin >= Number(S.autoCheckoutAfterLeaveMin ?? 60)) {
+      const inMs = new Date(rec.checkIn).getTime();
+      let outMs = prevLeft; if (outMs > ms) outMs = ms; if (outMs <= inMs) outMs = ms;
+      const workedMin = Math.max(0, Math.round((outMs - inMs) / 60000));
+      const a = toMin(rec.expectedStart), b = toMin(rec.expectedEnd);
+      let reqMin = (a != null && b != null) ? b - a : Number(S.dailyHours || 8) * 60; if (reqMin < 0) reqMin += 1440; reqMin = reqMin || 480;
+      const lateMin = Math.max(0, Number(rec.lateMin || 0)); const ot = Math.max(0, workedMin - reqMin);
+      await fetch(`${cfg.dbUrl}/attendance/${dk}/${cfg.empId}.json`, { method: "PATCH", body: JSON.stringify({
+        checkOut: new Date(outMs).toISOString(), workedMin, requiredMin: reqMin, overtimeMin: ot,
+        completed: true, autoCheckout: true,
+        status: (lateMin > 0 && ot > 0) ? "present" : (rec.status === "late" ? "late" : "present"),
+        lateMin: (lateMin > 0 && ot > 0) ? 0 : lateMin, lateExcused: (lateMin > 0 && ot > 0) ? lateMin : 0,
+        updatedAt: Date.now() }) });
+      await fetch(`${cfg.dbUrl}/events.json`, { method: "POST", body: JSON.stringify({
+        type: "out", empId: cfg.empId, empName: cfg.empName, date: dk,
+        at: new Date(outMs).toISOString(), workedMin, auto: true, createdAt: Date.now() }) });
+      const oh = cairo(outMs), H = Math.floor(workedMin/60), Mn = workedMin%60;
+      const outLbl = `${p2(oh.getHours()%12||12)}:${p2(oh.getMinutes())} ${oh.getHours()<12?"ص":"م"}`;
+      await self.registration.showNotification("🔴 تم تسجيل انصرافك", {
+        body: `${cfg.empName}
+مضت ساعة على مغادرتك شبكة الشركة
+سُجّل انصرافك عند خروجك الساعة ${outLbl}
+إجمالي اليوم: ${Mn? H+" س "+Mn+" د" : H+" س"}`,
+        icon: "./icons/icon-192-sl.png", badge: "./icons/icon-192-sl.png",
+        dir: "rtl", lang: "ar", silent: false, requireInteraction: true, tag: "auto-out", vibrate: [300,120,300,120,300] });
+      return;
+    }
+
     if (prev && prev.date === dk && prev.done) return;
     await c.put(markReq, new Response(JSON.stringify({ date: dk, done: true }),
       { headers: { "content-type": "application/json" } }));
@@ -232,8 +263,8 @@ async function checkoutDue() {
     const rec = await (await fetch(`${cfg.dbUrl}/attendance/${dk}/${cfg.empId}.json`, { cache: "no-store" })).json();
     if (!rec || !rec.checkIn || rec.checkOut || rec.status === "absent") return;
 
-    // ═══ انصراف تلقائي والتطبيق مغلق ═══
-    if (S.autoCheckout !== false && cur >= end + Number(S.autoCheckoutAfterMin ?? 2)) {
+    // ═══ انصراف تلقائي عند نهاية الشفت (لمن ما زال في المقر ولم يغادر الشبكة) ═══
+    if (S.autoCheckout !== false && !rec.leftNetAt && cur >= end + Number(S.autoCheckoutAfterMin ?? 2)) {
       const inMs = new Date(rec.checkIn).getTime();
       // وقت الانصراف = نهاية الشفت اليوم (بتوقيت القاهرة)
       const endHH = end, endDate = new Date(now); endDate.setHours(Math.floor(endHH / 60), endHH % 60, 0, 0);
