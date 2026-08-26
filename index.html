@@ -950,6 +950,16 @@
     <p class="qr-hint" id="pcApproveText">
       هل تريد ربط جهاز الكمبيوتر بحسابك؟ سيعمل حسابك على الهاتف والكمبيوتر معاً.
     </p>
+    <div id="pcApproveLogin" hidden>
+      <label class="field"><span>الاسم</span>
+        <div class="input-icon"><svg class="ico"><use href="#i-user"/></svg>
+          <input id="pcApproveName" type="text" placeholder="اسمك المسجَّل" autocomplete="off" /></div>
+      </label>
+      <label class="field"><span>رقم الهاتف</span>
+        <div class="input-icon"><svg class="ico"><use href="#i-phone"/></svg>
+          <input id="pcApprovePhone" type="tel" inputmode="numeric" placeholder="01xxxxxxxxx" autocomplete="off" /></div>
+      </label>
+    </div>
     <div class="ef-actions">
       <button id="pcApproveYes" class="btn btn-primary"><svg class="ico"><use href="#i-check"/></svg> موافقة وربط الكمبيوتر</button>
       <button id="pcApproveNo" class="btn btn-ghost">رفض</button>

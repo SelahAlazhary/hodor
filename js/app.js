@@ -340,20 +340,39 @@ $("#pcUseForm")?.addEventListener("click", () => {
 function askPcApproval(pcId, code) {
   const modal = $("#pcApproveModal");
   const msg = $("#pcApproveMsg");
-  const emp = state.employees.find(e => e.id === state.session?.empId);
-  modal.hidden = false;
-  if (!emp) {
-    $("#pcApproveText").textContent = "سجّل دخولك على هذا الهاتف أولاً ثم أعد مسح الرمز.";
-    $("#pcApproveYes").hidden = true;
-    return;
+  const loginBox = $("#pcApproveLogin");
+  const err = (t) => { msg.textContent = t; msg.className = "alert error"; msg.hidden = false; };
+  modal.hidden = false; msg.hidden = true;
+  $("#pcApproveYes").hidden = false;
+
+  let emp = state.employees.find(e => e.id === state.session?.empId);
+  if (emp) {
+    // مسجّل دخوله على الهاتف — موافقة مباشرة
+    loginBox.hidden = true;
+    $("#pcApproveText").textContent =
+      `هل تريد ربط جهاز الكمبيوتر بحساب ${emp.name}؟ سيعمل حسابك على الهاتف والكمبيوتر معاً.`;
+  } else {
+    // فُتح الرابط في المتصفح بلا جلسة — يسجّل دخوله هنا مباشرة
+    loginBox.hidden = false;
+    $("#pcApproveText").textContent =
+      "لربط الكمبيوتر أدخل اسمك ورقم هاتفك، وسيعمل حسابك على الهاتف والكمبيوتر معاً.";
   }
-  $("#pcApproveText").textContent =
-    `هل تريد ربط جهاز الكمبيوتر بحساب ${emp.name}؟ سيعمل حسابك على الهاتف والكمبيوتر معاً.`;
+
   $("#pcApproveYes").onclick = async () => {
+    let target = emp;
+    if (!target) {
+      const name = $("#pcApproveName").value.trim(), phone = $("#pcApprovePhone").value.trim();
+      if (!name || !phone) { err("أدخل الاسم ورقم الهاتف"); return; }
+      const found = findEmployee(state.employees, name, phone);
+      if (!found.emp) { err(found.reason === "phone"
+        ? "رقم الهاتف لا يطابق الاسم المسجَّل" : "هذا الاسم غير مسجَّل لدى الإدارة"); return; }
+      if (found.emp.active === false) { err("حسابك موقوف — راجع الإدارة"); return; }
+      target = found.emp;
+    }
     $("#pcApproveYes").disabled = true;
-    const r = await approvePcRequest(pcId, code, emp);
+    const r = await approvePcRequest(pcId, code, target);
     $("#pcApproveYes").disabled = false;
-    if (!r.ok) { msg.textContent = r.error; msg.className = "alert error"; msg.hidden = false; return; }
+    if (!r.ok) { err(r.error); return; }
     msg.textContent = "تم ربط الكمبيوتر ✅ افتح الشاشة عليه الآن";
     msg.className = "alert ok"; msg.hidden = false;
     toast("تم ربط جهاز الكمبيوتر بحسابك ✅", "ok");
