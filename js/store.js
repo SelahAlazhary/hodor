@@ -26,10 +26,10 @@ export const DEFAULT_SETTINGS = {
   autoCheckin: false,
   networks: {},             // { "41_33_12_5": { ip, label, addedAt } }
   manualCheckin: false,
-  earlyCheckinMin: 60,        // يُسمح بتسجيل الحضور قبل بدء الشفت بهذا العدد من الدقائق فقط
+  earlyCheckinMin: 15,        // يُقبل التسجيل قبل بدء الشفت بربع ساعة
   screenMonitor: false,       // مراقبة شاشات الكمبيوتر بلقطات عشوائية
   autoCheckout: true,         // انصراف تلقائي عند انتهاء الشفت
-  autoCheckoutAfterMin: 2,    // بعد نهاية الشفت بهذا العدد من الدقائق
+  autoCheckoutAfterMin: 15,   // انصراف تلقائي بعد نهاية الشفت بربع ساعة
   autoCheckoutAfterLeaveMin: 60, // انصراف تلقائي بعد مغادرة الشبكة بهذا العدد من الدقائق
   compensateLate: false,      // false = التأخير يُحتسب دائماً | true = يُعوَّض بالوقت الإضافي      // زر «تسجيل حضور» مخفي عن الموظف افتراضياً
   forceInstall: true,
